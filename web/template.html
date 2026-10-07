@@ -311,7 +311,7 @@ for (const r of D.rows){ if(!byFips.has(r[0])) byFips.set(r[0], []); byFips.get(
 const stateOf = f => Math.floor(f/1000);
 const stateFips = [...new Set(D.rows.map(r => stateOf(r[0])))].filter(s => D.states[s]).sort((a,b)=>D.states[a][0].localeCompare(D.states[b][0]));
 
-const S = { fips:27129, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
+const S = { fips:27127, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
 const money = (x, d=2) => (x==null||isNaN(x)) ? "n/a" : (x<0?"−$":"$") + Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
 const num = (x, d=1) => (x==null||isNaN(x)) ? "—" : x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pct = x => (x==null||isNaN(x)) ? "n/a" : Math.round(x*100) + "%";
