@@ -1,0 +1,563 @@
+<title>ARC-CO / PLC Calculator</title>
+<meta name="description" content="Estimate 2026 ARC-CO and PLC payments by county, crop and practice.">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-cartesian-dist-min@2.35.2/plotly-cartesian.min.js"></script>
+<style>
+/*__FONTS__*/
+/* Layout: tool page. Left rail = selection + inputs; right = verdict, parameters, tabbed detail.
+   ARC-CO is field green, PLC is harvest amber, used consistently in every card, cell and chart. */
+:root{
+  /* Brand: UMN Extension theme (deck accents 1-6: maroon, gold, orange, lime, cyan, red) */
+  --brand:#7A0019; --brand-2:#FFCC33;
+  /* Sensitivity scale: white -> gold -> lime green; dark cell text so values read on any stop */
+  --s-lo:#FFFFFF; --s-mid:#FFCC33; --s-hi:#C1D72E; --s-alt:#F8981D; --s-ink:#231A1C;
+  /* ARC-CO minus PLC view: two flat colors, maroon = ARC-CO higher, gold = PLC higher */
+  --d-arc:#7A0019; --d-arc-ink:#FFFFFF; --d-plc:#FFCC33; --d-plc-ink:#231A1C;
+  --bg:#F6F4F2; --surface:#FFFFFF; --sunk:#EFEBE8; --fg:#231A1C; --muted:#64585B; --line:#DDD5D3;
+  --arc:#7A0019; --plc:#B07F00; --focus:#2F6FD6;
+  --f-display:"Raleway", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-body:"Raleway", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-num:"Raleway", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#151112; --surface:#1E1819; --sunk:#271F21; --fg:#EDE6E7; --muted:#A99C9F; --line:#3A2F31;
+  --arc:#E58A9C; --plc:#FFCC33; --brand:#E58A9C; --brand-2:#FFCC33; --focus:#7FA8F0; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#151112; --surface:#1E1819; --sunk:#271F21; --fg:#EDE6E7; --muted:#A99C9F; --line:#3A2F31;
+  --arc:#E58A9C; --plc:#FFCC33; --brand:#E58A9C; --brand-2:#FFCC33; --focus:#7FA8F0; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:15px; line-height:1.5; font-variant-numeric:lining-nums tabular-nums}
+.wrap{max-width:1240px; margin:0 auto; padding-inline:20px; padding-block:28px 48px}
+.brandbar{height:6px; background:linear-gradient(90deg,var(--brand) 0 78%,var(--brand-2) 78% 100%)}
+.logo{display:flex; align-items:center; gap:10px; margin-bottom:14px; min-height:40px}
+.logo img{height:56px; width:auto}
+.logo .logo-dark{display:none}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .logo .logo-light{display:none} :root:not([data-theme="light"]) .logo .logo-dark{display:block} }
+:root[data-theme="dark"] .logo .logo-light{display:none}
+:root[data-theme="dark"] .logo .logo-dark{display:block}
+.logo .wordmark{font-weight:800; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--brand); line-height:1.2}
+.logo .wordmark span{display:block; font-weight:600; color:var(--muted); letter-spacing:.04em}
+.head-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.btn{font:inherit; font-size:13px; font-weight:700; color:var(--surface); background:var(--brand); border:none; border-radius:8px; padding:8px 14px; cursor:pointer}
+.btn:hover{filter:brightness(1.1)}
+header.top{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 24px; margin-bottom:22px}
+h1{font-family:var(--f-display); font-weight:800; font-size:clamp(1.6rem,3vw,2.2rem); letter-spacing:-.01em; margin:0; text-wrap:balance}
+h1 .yr{color:var(--brand)}
+.sub{color:var(--muted); margin:2px 0 0}
+.badge{font-family:var(--f-num); font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:3px 10px; white-space:nowrap}
+
+.layout{display:grid; grid-template-columns:300px minmax(0,1fr); gap:24px; align-items:start}
+@media (max-width:880px){ .layout{grid-template-columns:minmax(0,1fr)} }
+
+aside.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:14px; position:sticky; top:calc(env(safe-area-inset-top,0px) + 16px)}
+@media (max-width:880px){ aside.panel{position:static} }
+.group-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:4px 0 -4px}
+label.f{display:flex; flex-direction:column; gap:5px; font-weight:600; font-size:13px}
+label.f small{font-weight:400; color:var(--muted)}
+select,input[type=number]{font:inherit; font-size:15px; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; width:100%}
+input[type=number]{font-family:var(--f-num); font-variant-numeric:lining-nums tabular-nums}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--focus); outline-offset:1px}
+.inline{display:flex; gap:8px; align-items:center}
+.inline input{flex:1; min-width:0}
+.reset{font:inherit; font-size:12px; color:var(--muted); background:none; border:none; text-decoration:underline; cursor:pointer; padding:0; align-self:flex-start}
+.reset:hover{color:var(--fg)}
+.contact p:not(.group-label){margin:0; font-size:14px}
+.contact{display:flex; flex-direction:column; gap:10px}
+.contact p+p{margin-top:8px}
+.contact a{color:var(--brand); font-weight:600; user-select:all}
+hr{border:none; border-top:1px solid var(--line); margin:2px 0}
+
+main{display:flex; flex-direction:column; gap:20px; min-width:0}
+.where{font-family:var(--f-display); font-size:1.35rem; font-weight:700; margin:0}
+.where span{color:var(--muted); font-family:var(--f-body); font-size:.95rem; font-weight:400}
+
+.pay{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,1.1fr); gap:14px}
+@media (max-width:640px){ .pay{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .pay .verdict{grid-column:1/-1} }
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; min-width:0}
+.prog{border-top:4px solid var(--c)}
+.prog .k{font-size:13px; font-weight:700; color:var(--c)}
+.big{font-family:var(--f-num); font-variant-numeric:lining-nums tabular-nums; font-size:clamp(1.6rem,3.6vw,2.3rem); font-weight:600; line-height:1.15; margin-top:4px}
+.unit{color:var(--muted); font-size:12px}
+.verdict{display:flex; flex-direction:column; justify-content:center; gap:4px; background:var(--sunk); border-color:transparent}
+.verdict .v{font-family:var(--f-display); font-size:1.3rem; font-weight:700}
+.verdict .d{color:var(--muted); font-size:13px}
+.pill{display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; color:var(--surface); background:var(--c)}
+
+.params{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:0; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+@media (max-width:1180px){ .params{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@media (max-width:560px){ .params{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.params div{padding:10px 12px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); margin:0 -1px -1px 0}
+.params dt{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.params dd{margin:2px 0 0; font-family:var(--f-num); font-variant-numeric:lining-nums tabular-nums; font-size:15px}
+.note{font-size:13px; color:var(--muted); margin:0}
+.note b{color:var(--fg); font-weight:600}
+
+.tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); flex-wrap:wrap}
+.tabs button{font:inherit; font-weight:600; font-size:14px; color:var(--muted); background:none; border:none; padding:10px 14px; border-bottom:3px solid transparent; margin-bottom:-1px; cursor:pointer}
+.tabs button[aria-selected=true]{color:var(--fg); border-bottom-color:var(--brand)}
+.tabpanel{padding-top:16px; display:flex; flex-direction:column; gap:12px}
+
+.controls{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; font-size:13px}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.seg button{font:inherit; font-size:13px; background:var(--surface); color:var(--muted); border:none; padding:6px 12px; cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--fg); color:var(--bg)}
+.tablewrap{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--r)}
+table{border-collapse:collapse; width:100%; font-family:var(--f-num); font-variant-numeric:lining-nums tabular-nums; font-size:13px}
+th,td{padding:7px 10px; text-align:right; white-space:nowrap}
+thead th{font-weight:500; color:var(--muted); border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--surface)}
+thead th.cur{color:var(--fg); font-weight:600}
+tbody th{color:var(--muted); font-weight:400; text-align:left; border-right:1px solid var(--line)}
+tbody th .pct{opacity:.75}
+tbody tr.cur th{color:var(--fg); font-weight:600}
+td.hit{box-shadow:inset 0 0 0 2px #FFFFFF; outline:2px solid var(--fg); outline-offset:-2px; font-weight:600}
+tr.plcrow th,tr.plcrow td{border-top:2px solid var(--line)}
+th.corner{text-align:left; font-family:var(--f-body); font-size:12px}
+.legend{display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+.legend .ramp{display:inline-flex; align-items:center; gap:6px}
+.legend .ramp b{font-weight:600}
+.legend .bar{display:inline-block; width:110px; height:10px; border-radius:2px; border:1px solid var(--line); background:linear-gradient(90deg,var(--s-lo),var(--s-mid),var(--s-hi))}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; background:var(--c)}
+
+.charts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+@media (max-width:760px){ .charts{grid-template-columns:minmax(0,1fr)} }
+.chart{height:360px; width:100%}
+.chartcard{padding:12px 12px 4px}
+.chartcard h3{font-size:14px; margin:2px 6px 0; font-weight:700}
+.chartcard p{font-size:12px; color:var(--muted); margin:0 6px}
+.sw{display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--c); vertical-align:-1px; margin:0 4px 0 6px}
+.sw:first-child{margin-left:0}
+
+.estim{display:flex; flex-direction:column; gap:12px}
+.estim h3{margin:0; font-size:1.05rem; font-weight:700}
+.expect{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+@media (max-width:640px){ .expect{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.expect .card{padding:12px 14px; background:var(--sunk); border-color:transparent}
+.expect .lab{font-size:12px; color:var(--muted)}
+.expect .val{font-size:1.25rem; font-weight:600}
+details summary{cursor:pointer; font-weight:600; font-size:14px}
+details[open] summary{margin-bottom:12px}
+footer{margin-top:28px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
+footer p{margin:0 0 6px}
+footer code{font-family:var(--f-num)}
+.printonly{display:none}
+@media print{ .screenonly{display:none} }
+@media print{
+  @page{size:letter portrait; margin:0}
+  :root{--bg:#fff; --surface:#fff; --sunk:#F3F0EE; --fg:#111; --muted:#555; --line:#ccc; --arc:#7A0019; --plc:#9A6F00; --brand:#7A0019; color-scheme:light}
+  *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+  body{font-size:11px}
+  .wrap{max-width:none; padding:0.4in 0.5in}
+  .brandbar{display:none}
+  .layout{grid-template-columns:minmax(0,1fr); gap:10px}
+  aside.panel, .head-actions .btn, .tabs, #p-charts, #p-hist, .controls, .reset, .sub{display:none!important}
+  #p-sens[hidden]{display:flex!important}
+  .tabpanel{padding-top:0}
+  .printonly{display:block}
+  main{gap:10px}
+  .card{padding:8px 12px; break-inside:avoid}
+  .big{font-size:1.5rem}
+  .pay{grid-template-columns:1fr 1fr 1.2fr!important}
+  .expect{grid-template-columns:repeat(4,1fr)!important}
+  .params{grid-template-columns:repeat(7,1fr)}
+  .params div{padding:4px 8px}
+  .params dt{font-size:8px}
+  .params dd{font-size:11px}
+  .estim{gap:6px}
+  .estim .note{font-size:9.5px; line-height:1.35}
+  .expect .card{padding:5px 10px}
+  .expect .val{font-size:1rem}
+  .verdict .v{font-size:1.05rem}
+  .legend{font-size:9.5px}
+  th,td{padding:2px 7px}
+  table{font-size:10.5px}
+  thead th{position:static}
+  .tablewrap{overflow:visible}
+  h1{font-size:1.5rem}
+  .logo{margin-bottom:4px}
+  .logo img{height:46px}
+  .logo .logo-light{display:block!important}
+  .logo .logo-dark{display:none!important}
+  footer{margin-top:10px; font-size:9px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="brandbar"></div>
+<div class="wrap">
+  <div class="logo" id="logo"><!--__LOGO__--><div class="wordmark">University of Minnesota<span>Extension</span></div></div>
+  <header class="top">
+    <div>
+      <h1><span class="yr" id="yr">2026</span> ARC-CO / PLC Calculator</h1>
+      <p class="sub">Enter a county yield and MYA price to estimate payments per base acre.</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn" id="printBtn" type="button" hidden>Print / save PDF</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-label="Selection and inputs">
+      <p class="group-label">Location &amp; crop</p>
+      <label class="f">State <select id="state"></select></label>
+      <label class="f">County <select id="county"></select></label>
+      <label class="f">Crop <select id="crop"></select></label>
+      <label class="f">Practice <select id="practice"></select></label>
+      <hr>
+      <p class="group-label">Your scenario</p>
+      <label class="f"><span>County yield <small id="yUnit"></small></span>
+        <input type="number" id="yield" min="0" step="1" inputmode="decimal">
+        <small id="yHint"></small></label>
+      <label class="f"><span>MYA price <small id="pUnit"></small></span>
+        <input type="number" id="price" min="0" step="0.05" inputmode="decimal">
+        <small id="pHint"></small></label>
+      <button class="reset" id="reset" type="button">Reset to model expectations</button>
+      <hr>
+      <div class="contact">
+        <p class="group-label">Contact</p>
+        <p>Henrique Monaco<br><a href="mailto:hmonaco@umn.edu">hmonaco@umn.edu</a></p>
+      </div>
+    </aside>
+
+    <main>
+      <h2 class="where" id="where"></h2>
+      <p class="note printonly" id="printScenario"></p>
+
+      <section class="pay" aria-label="Payments">
+        <div class="card prog" style="--c:var(--arc)">
+          <div class="k">ARC-CO</div>
+          <div class="big" id="arcPay">–</div>
+          <div class="unit">per base acre</div>
+        </div>
+        <div class="card prog" style="--c:var(--plc)">
+          <div class="k">PLC</div>
+          <div class="big" id="plcPay">–</div>
+          <div class="unit">per base acre</div>
+        </div>
+        <div class="card verdict" id="verdict"></div>
+      </section>
+
+      <dl class="params" id="params"></dl>
+      <p class="note" id="plcNote" hidden></p>
+
+      <section class="card estim" id="expectBox" aria-labelledby="estimTitle">
+        <h3 id="estimTitle">Our estimations based on available info</h3>
+        <div class="expect" id="expect"></div>
+        <p class="note">We simulate many possible outcomes for the <span class="yrTxt">2026</span> county yield and the national MYA price and compute ARC-CO and PLC payments in each one. The figures above are the average payment across those outcomes and the share of outcomes in which each program pays. They do not change with your inputs, and they differ from the payment at the average yield and price because they include the uncertainty in markets and yields.</p>
+        <p class="note"><b>Sources:</b> expected MYA prices from the September 2026 USDA WASDE report; county trend yields from USDA FSA and RMA data; benchmark yields, benchmark prices, PLC yields and reference prices from USDA FSA.</p>
+      </section>
+
+      <div class="detail">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="sens" id="tab-sens">Sensitivity table</button>
+          <button role="tab" aria-selected="false" data-tab="charts" id="tab-charts">Charts</button>
+          <button role="tab" aria-selected="false" data-tab="hist" id="tab-hist">History</button>
+        </div>
+
+        <section class="tabpanel" id="p-sens" role="tabpanel">
+          <div class="controls">
+            <span class="seg" id="modeSeg">
+              <button type="button" data-mode="arc" aria-pressed="true">ARC-CO payment</button>
+              <button type="button" data-mode="diff" aria-pressed="false">ARC-CO − PLC</button>
+            </span>
+            <label>Step <select id="step" style="width:auto">
+              <option value="2.5">2.5%</option><option value="5" selected>5%</option><option value="10">10%</option>
+            </select></label>
+            <button class="reset" id="copyTbl" type="button">Copy table</button>
+          </div>
+          <div class="tablewrap"><table id="sens"></table></div>
+          <div class="legend" id="sensLegend"></div>
+        </section>
+
+        <section class="tabpanel" id="p-charts" role="tabpanel" hidden>
+          <div class="charts">
+            <div class="card chartcard"><h3>Payment vs. MYA price</h3><p>ARC-CO at your county yield; PLC at the PLC yield.</p><div class="chart" id="chPrice"></div></div>
+            <div class="card chartcard" id="heatCard"><h3>Which program pays more?</h3><p><i class="sw" style="--c:var(--d-arc)"></i>ARC-CO pays more <i class="sw" style="--c:var(--d-plc)"></i>PLC pays more · ✕ your scenario. Hover for the $ difference.</p><div class="chart" id="chHeat"></div></div>
+          </div>
+        </section>
+
+        <section class="tabpanel" id="p-hist" role="tabpanel" hidden>
+          <div class="charts">
+            <div class="card chartcard" id="hYieldCard"><h3>County yields, 2020–2024</h3><p>Benchmark is the Olympic average (after plug yields).</p><div class="chart" id="chHY"></div></div>
+            <div class="card chartcard"><h3>National MYA prices, 2020–2024</h3><p>Benchmark price and effective reference price shown as lines.</p><div class="chart" id="chHP"></div></div>
+          </div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+
+  <footer>
+    <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu · Printed <span id="printDate"></span></p>
+    <p>Payments are $ per base acre and include the 85% payment-acre factor. ARC-CO uses a 90% revenue guarantee and a 12% maximum payment rate; actual revenue uses the higher of the MYA price and the loan rate. PLC pays the effective reference price minus the higher of the MYA price and loan rate, times the PLC yield. Figures are before sequestration and payment limits.<span class="screenonly"> For educational purposes only.</span></p>
+  </footer>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+// row layout: [fips, crop, practice, yields[5], benchYield, plcYield, plcBorrowed, expYield, expArc, expPlc, pArc, pPlc]
+const PRACT_LABEL = {"All":"All","Nonirrigated":"Non-irrigated","Irrigated":"Irrigated","PLC only":"PLC yield only"};
+const PAF = 0.85, GUAR = 0.90, CAP = 0.12;
+const $ = id => document.getElementById(id);
+
+/* ---------- formulas (mirror arcplc.py) ---------- */
+function arcPay(y, p, by, bp, loan){ const br = by*bp; const s = GUAR*br - y*Math.max(p, loan); return Math.min(Math.max(s,0), CAP*br)*PAF; }
+function plcPay(p, erp, loan, py){ return Math.max(erp - Math.max(p, loan), 0)*py*PAF; }
+
+/* ---------- index ---------- */
+const byFips = new Map();
+for (const r of D.rows){ if(!byFips.has(r[0])) byFips.set(r[0], []); byFips.get(r[0]).push(r); }
+const stateOf = f => Math.floor(f/1000);
+const stateFips = [...new Set(D.rows.map(r => stateOf(r[0])))].filter(s => D.states[s]).sort((a,b)=>D.states[a][0].localeCompare(D.states[b][0]));
+
+const S = { fips:27129, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
+const money = (x, d=2) => (x==null||isNaN(x)) ? "n/a" : (x<0?"−$":"$") + Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const num = (x, d=1) => (x==null||isNaN(x)) ? "—" : x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = x => (x==null||isNaN(x)) ? "n/a" : Math.round(x*100) + "%";
+
+function opt(sel, items, val){ sel.innerHTML = items.map(([v,t]) => `<option value="${v}">${t}</option>`).join(""); if (val!=null) sel.value = val; }
+
+function fillState(){ opt($("state"), stateFips.map(s => [s, D.states[s][0]]), stateOf(S.fips)); }
+function fillCounty(){
+  const st = +$("state").value;
+  const fl = [...byFips.keys()].filter(f => stateOf(f)===st).sort((a,b)=>D.counties[a].localeCompare(D.counties[b]));
+  if (!fl.includes(S.fips)) S.fips = fl[0];
+  opt($("county"), fl.map(f => [f, D.counties[f]]), S.fips);
+}
+function fillCrop(){
+  const crops = [...new Set(byFips.get(S.fips).map(r => r[1]))].sort((a,b)=>D.crops[a].name.localeCompare(D.crops[b].name));
+  if (!crops.includes(S.crop)) S.crop = crops.includes(D.crops.findIndex(c=>c.name==="Corn")) ? D.crops.findIndex(c=>c.name==="Corn") : crops[0];
+  opt($("crop"), crops.map(c => [c, D.crops[c].name]), S.crop);
+}
+function fillPrac(){
+  const ps = byFips.get(S.fips).filter(r => r[1]===S.crop).map(r => r[2]).sort();
+  if (!ps.includes(S.prac)) S.prac = ps[0];
+  opt($("practice"), ps.map(p => [p, PRACT_LABEL[D.practices[p]]]), S.prac);
+}
+function current(){
+  const r = byFips.get(S.fips).find(r => r[1]===S.crop && r[2]===S.prac);
+  const c = D.crops[S.crop];
+  return { r, c, by:r[4], py:r[5], borrowed:r[6], ey:r[7], hasArc:r[4]!=null, hasPlc:r[5]!=null };
+}
+function resetInputs(){
+  const k = current();
+  S.y = k.hasArc ? (k.ey ?? k.by) : null;
+  S.p = k.c.ep;
+  $("yield").value = S.y==null ? "" : S.y.toFixed(1);
+  $("price").value = S.p.toFixed(k.c.dec);
+}
+
+/* ---------- theme-aware chart styling ---------- */
+function tok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function baseLayout(xt, yt){
+  const fg = tok("--fg"), mu = tok("--muted"), ln = tok("--line");
+  const ax = t => ({ title:{text:t, font:{size:12,color:mu}}, gridcolor:ln, zerolinecolor:ln, linecolor:ln, tickfont:{color:mu, size:11}, automargin:true });
+  return { paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", font:{family:"Public Sans, system-ui, sans-serif", color:fg, size:12},
+    margin:{l:56,r:16,t:16,b:44}, xaxis:ax(xt), yaxis:ax(yt), showlegend:true,
+    legend:{orientation:"h", x:0, y:1.12, font:{size:12}}, hoverlabel:{font:{family:"Raleway, system-ui, sans-serif"}} };
+}
+const CFG = { displayModeBar:false, responsive:true };
+
+/* ---------- render ---------- */
+function render(){
+  const k = current(), c = k.c, d = c.dec;
+  const loan = c.loan, erp = c.erp, bp = c.bp, by = k.by, py = k.py;
+  const y = S.y, p = S.p;
+  const pu = `$/${c.unit}`, yu = `${c.unit}/ac`;
+  $("yUnit").textContent = `(${yu})`; $("pUnit").textContent = `(${pu})`;
+  $("yield").disabled = !k.hasArc;
+  $("yHint").textContent = k.hasArc ? `Model expectation ${num(k.ey)}` : "No ARC-CO benchmark for this selection";
+  $("pHint").textContent = `Model expectation $${c.ep.toFixed(d)} · loan rate $${loan.toFixed(d)}`;
+  $("price").step = d===2 ? "0.05" : "0.005";
+
+  const st = D.states[stateOf(S.fips)];
+  $("where").innerHTML = `${D.counties[S.fips]}, ${st[1]} <span>· ${c.name} · ${PRACT_LABEL[D.practices[S.prac]]} · FIPS ${String(S.fips).padStart(5,"0")}</span>`;
+
+  const a = k.hasArc && y!=null ? arcPay(y, p, by, bp, loan) : null;
+  const q = k.hasPlc ? plcPay(p, erp, loan, py) : null;
+  $("arcPay").textContent = money(a); $("plcPay").textContent = money(q);
+  let v = "";
+  if (a!=null && q!=null){
+    const diff = a - q;
+    if (Math.abs(diff) < 0.005) v = `<span class="v">${a===0 ? "Neither pays" : "Equal payments"}</span><span class="d">at this yield and price</span>`;
+    else { const w = diff>0 ? ["ARC-CO","--arc"] : ["PLC","--plc"];
+      v = `<span><span class="pill" style="--c:var(${w[1]})">${w[0]} higher</span></span><span class="v">${money(Math.abs(diff))} more</span><span class="d">per base acre at this yield and price</span>`; }
+  } else v = `<span class="v">Only ${a!=null?"ARC-CO":"PLC"} available</span><span class="d">for this county, crop and practice</span>`;
+  $("verdict").innerHTML = v;
+
+  const rev = k.hasArc && y!=null ? y*Math.max(p,loan) : null;
+  const P = [
+    ["Benchmark yield", k.hasArc ? `${num(by)} ${c.unit}` : "—"],
+    ["Benchmark price", `$${bp.toFixed(d)}`],
+    ["Benchmark revenue", k.hasArc ? money(by*bp,0) : "—"],
+    ["ARC guarantee (90%)", k.hasArc ? money(GUAR*by*bp,0) : "—"],
+    ["Your actual revenue", money(rev,0)],
+    ["Eff. reference price", `$${erp.toFixed(d)}`],
+    ["PLC yield", k.hasPlc ? `${num(py)} ${c.unit}` : "—"],
+  ];
+  $("params").innerHTML = P.map(([t,v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
+  $("plcNote").hidden = !(k.borrowed || !k.hasPlc);
+  $("plcNote").innerHTML = !k.hasPlc ? "<b>No PLC yield</b> is reported for this county and crop, so PLC is not calculated."
+    : "<b>PLC yield</b> is not reported for this practice; the county's PLC yield for the crop is used.";
+
+  $("printScenario").innerHTML = `<b>Your scenario:</b> county yield ${y==null?"n/a":num(y)+" "+yu}, MYA price $${p.toFixed(d)}/${c.unit}`;
+  const r = k.r;
+  $("expect").innerHTML = [["Expected ARC-CO", money(r[8])],["Expected PLC", money(r[9])],["Chance ARC-CO pays", pct(r[10])],["Chance PLC pays", pct(r[11])]]
+    .map(([t,v]) => `<div class="card"><div class="lab">${t}</div><div class="val">${v}</div></div>`).join("");
+
+  renderTable(k);
+  if (S.tab==="charts") renderCharts(k);
+  if (S.tab==="hist") renderHist(k);
+}
+
+let lastTable = "";
+function renderTable(k){
+  const c = k.c, d = c.dec, step = S.step/100;
+  const prices = [-4,-3,-2,-1,0,1,2,3,4].map(i => S.p*(1+i*step));
+  const tbl = $("sens");
+  // white -> gold -> lime green color scale (Extension palette); zero stays unshaded
+  const hex = h => [1,3,5].map(i => parseInt(h.trim().slice(i,i+2),16));
+  const LO = hex(tok("--s-lo")), MID = hex(tok("--s-mid")), HI = hex(tok("--s-hi")), ALT = hex(tok("--s-alt")), INK = tok("--s-ink");
+  const mixc = (a,b,t) => `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(",")})`;
+  const scale = t => t<=0.5 ? mixc(LO, MID, t*2) : mixc(MID, HI, (t-0.5)*2);
+  const paint = bg => `background:${bg}; color:${INK}`;
+  const shade = (val, max) => max>0 && val>0.005 ? paint(scale(0.12 + 0.88*val/max)) : "";
+  const shadeDiff = v => Math.abs(v)<0.005 ? "" : v>0 ? `background:var(--d-arc); color:var(--d-arc-ink)` : `background:var(--d-plc); color:var(--d-plc-ink)`;
+  const csv = [];
+  $("modeSeg").hidden = !(k.hasArc && k.hasPlc);
+  if (!k.hasArc || S.y==null){
+    const pl = prices.map(p => plcPay(p, c.erp, c.loan, k.py)); const mx = Math.max(...pl);
+    tbl.innerHTML = `<thead><tr><th class="corner">MYA price</th>${prices.map((p,j)=>`<th class="${j===4?"cur":""}">$${p.toFixed(d)}</th>`).join("")}</tr></thead>
+      <tbody><tr class="cur"><th>PLC payment</th>${pl.map((v,j)=>`<td class="${j===4?"hit":""}" style="${shade(v,mx)}">${money(v)}</td>`).join("")}</tr></tbody>`;
+    csv.push(["MYA price",...prices.map(p=>p.toFixed(d))].join("\t"), ["PLC",...pl.map(v=>v.toFixed(2))].join("\t"));
+    $("sensLegend").innerHTML = `<span class="ramp"><b>$0</b><i class="bar"></i><b>${money(mx)}</b></span><span>PLC $/base acre</span>`;
+  } else {
+    const pcts = [4,3,2,1,0,-1,-2,-3,-4,-5,-6].map(i => 1 + i*step);
+    const ys = pcts.map(x => k.by*x);
+    const A = ys.map(y => prices.map(p => arcPay(y, p, k.by, c.bp, c.loan)));
+    const pl = prices.map(p => k.hasPlc ? plcPay(p, c.erp, c.loan, k.py) : null);
+    const diff = S.mode==="diff" && k.hasPlc;
+    const M = diff ? A.map(row => row.map((v,j) => v - pl[j])) : A;
+    const mx = Math.max(...M.flat().map(Math.abs), ...(diff ? [] : pl.filter(v=>v!=null)), 0.01);
+    // nearest row to the user's yield
+    let hi = 0; ys.forEach((y,i) => { if (Math.abs(y-S.y) < Math.abs(ys[hi]-S.y)) hi = i; });
+    const cell = (v) => diff ? shadeDiff(v) : shade(v, mx);
+    let h = `<thead><tr><th class="corner">Yield (${c.unit}/ac) ↓ · MYA price →</th>${prices.map((p,j)=>`<th class="${j===4?"cur":""}">$${p.toFixed(d)}</th>`).join("")}</tr></thead><tbody>`;
+    ys.forEach((y,i) => {
+      h += `<tr class="${i===hi?"cur":""}"><th>${num(y)} <span class="pct">(${Math.round(pcts[i]*100)}%)</span></th>${M[i].map((v,j)=>`<td class="${i===hi&&j===4?"hit":""}" style="${cell(v)}">${money(v)}</td>`).join("")}</tr>`;
+    });
+    if (!diff && k.hasPlc){ const pm = Math.max(...pl, 0.01);
+      h += `<tr class="plcrow"><th>PLC payment</th>${pl.map(v=>`<td style="${shade(v,mx)}">${money(v)}</td>`).join("")}</tr>`; }
+    tbl.innerHTML = h + "</tbody>";
+    csv.push([`Yield (${c.unit}/ac)`, ...prices.map(p=>p.toFixed(d))].join("\t"));
+    ys.forEach((y,i) => csv.push([y.toFixed(1), ...M[i].map(v=>v.toFixed(2))].join("\t")));
+    if (!diff && k.hasPlc) csv.push(["PLC", ...pl.map(v=>v.toFixed(2))].join("\t"));
+    $("sensLegend").innerHTML = diff
+      ? `<span><i style="--c:var(--d-arc)"></i>ARC-CO pays more</span><span><i style="--c:var(--d-plc)"></i>PLC pays more</span><span>Unshaded: equal (usually both $0).</span><span>Rows: county yield (% of benchmark). Outlined cell: closest to your scenario.</span>`
+      : `<span class="ramp"><b>$0</b><i class="bar"></i><b>${money(mx)}</b></span><span>$ per base acre${k.hasPlc?", ARC-CO rows and PLC (last row) on one scale":""}.</span><span>Rows: county yield (% of benchmark). Outlined cell: closest to your scenario.</span>`;
+  }
+  lastTable = csv.join("\n");
+}
+
+function renderCharts(k){
+  if (typeof Plotly === "undefined") return;
+  const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), mu = tok("--muted"), fg = tok("--fg");
+  const lo = Math.min(c.loan, S.p)*0.95, hi = Math.max(c.erp, c.bp, S.p)*1.3, n = 160;
+  const px = Array.from({length:n}, (_,i) => lo + (hi-lo)*i/(n-1));
+  const tr = [];
+  if (k.hasArc && S.y!=null) tr.push({x:px, y:px.map(p=>arcPay(S.y,p,k.by,c.bp,c.loan)), name:`ARC-CO (yield ${num(S.y)})`, line:{color:arcC,width:3}, hovertemplate:"$%{y:.2f}<extra>ARC-CO</extra>"});
+  if (k.hasPlc) tr.push({x:px, y:px.map(p=>plcPay(p,c.erp,c.loan,k.py)), name:"PLC", line:{color:plcC,width:3}, hovertemplate:"$%{y:.2f}<extra>PLC</extra>"});
+  const L = baseLayout(`MYA price ($/${c.unit})`, "$ per base acre");
+  L.hovermode = "x unified"; L.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f"; L.yaxis.tickprefix = "$"; L.yaxis.rangemode = "tozero";
+  L.shapes = [
+    {type:"line", x0:S.p, x1:S.p, yref:"paper", y0:0, y1:1, line:{color:fg, dash:"dot", width:1.5}},
+    {type:"line", x0:c.erp, x1:c.erp, yref:"paper", y0:0, y1:1, line:{color:mu, dash:"dash", width:1}},
+  ];
+  L.annotations = [
+    {x:S.p, yref:"paper", y:1, text:"your MYA", showarrow:false, xanchor:"left", yanchor:"top", font:{size:11,color:fg}},
+    {x:c.erp, yref:"paper", y:0.88, text:"eff. ref. price", showarrow:false, xanchor:"left", yanchor:"top", font:{size:11,color:mu}},
+  ];
+  Plotly.react("chPrice", tr, L, CFG);
+
+  const show = k.hasArc && k.hasPlc && S.y!=null;
+  $("heatCard").hidden = !show;
+  if (!show) return;
+  const m = 61, ys = Array.from({length:m}, (_,i) => k.by*(0.6 + 0.6*i/(m-1)));
+  const pp = Array.from({length:m}, (_,i) => lo + (hi-lo)*i/(m-1));
+  const plcv = pp.map(p => plcPay(p,c.erp,c.loan,k.py));
+  const z = ys.map(y => pp.map((p,j) => arcPay(y,p,k.by,c.bp,c.loan) - plcv[j]));
+  const zm = Math.max(...z.flat().map(Math.abs), 0.01);
+  const H = baseLayout(`MYA price ($/${c.unit})`, `County yield (${c.unit}/ac)`);
+  H.showlegend = false; H.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f";
+  Plotly.react("chHeat", [
+    // two flat colors by sign; actual difference kept for the hover
+    {type:"heatmap", x:pp, y:ys, z:z.map(r => r.map(v => Math.abs(v)<0.005 ? 0 : Math.sign(v))), customdata:z, zmin:-1, zmax:1,
+     colorscale:[[0,tok("--d-plc")],[0.33,tok("--d-plc")],[0.33,tok("--surface")],[0.67,tok("--surface")],[0.67,tok("--d-arc")],[1,tok("--d-arc")]],
+     showscale:false, hovertemplate:"price $%{x:.3f}<br>yield %{y:.1f}<br>ARC−PLC $%{customdata:.2f}<extra></extra>"},
+    {x:[S.p], y:[S.y], mode:"markers", marker:{symbol:"x", size:13, color:"#231A1C", line:{width:1.5,color:"#FFFFFF"}}, hoverinfo:"skip"}
+  ], H, CFG);
+}
+
+function renderHist(k){
+  if (typeof Plotly === "undefined") return;
+  const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), mu = tok("--muted"), yrs = D.histYears.map(String);
+  $("hYieldCard").hidden = !k.hasArc;
+  if (k.hasArc){
+    const L = baseLayout("", `${c.unit}/ac`); L.showlegend = false; L.xaxis.type = "category";
+    L.shapes = [{type:"line", xref:"paper", x0:0, x1:1, y0:k.by, y1:k.by, line:{color:mu, dash:"dash", width:1.5}}];
+    L.annotations = [{xref:"paper", x:1, y:k.by, text:`benchmark ${num(k.by)}`, showarrow:false, xanchor:"right", yanchor:"bottom", font:{size:11,color:mu}}];
+    Plotly.react("chHY", [{type:"bar", x:yrs, y:k.r[3], marker:{color:arcC}, hovertemplate:"%{y:.1f}<extra></extra>"}], L, CFG);
+  }
+  const L2 = baseLayout("", `$/${c.unit}`); L2.showlegend = false; L2.xaxis.type = "category"; L2.yaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f";
+  L2.shapes = [
+    {type:"line", xref:"paper", x0:0, x1:1, y0:c.bp, y1:c.bp, line:{color:mu, dash:"dash", width:1.5}},
+    {type:"line", xref:"paper", x0:0, x1:1, y0:c.erp, y1:c.erp, line:{color:mu, dash:"dot", width:1.5}},
+  ];
+  L2.annotations = [
+    {xref:"paper", x:1, y:c.bp, text:`benchmark $${c.bp.toFixed(c.dec)}`, showarrow:false, xanchor:"right", yanchor:"bottom", font:{size:11,color:mu}},
+    {xref:"paper", x:0, y:c.erp, text:`eff. ref. $${c.erp.toFixed(c.dec)}`, showarrow:false, xanchor:"left", yanchor:"top", font:{size:11,color:mu}},
+  ];
+  Plotly.react("chHP", [{type:"bar", x:yrs, y:c.mya, marker:{color:plcC}, hovertemplate:"$%{y}<extra></extra>"}], L2, CFG);
+}
+
+/* ---------- events ---------- */
+$("state").addEventListener("change", () => { fillCounty(); fillCrop(); fillPrac(); resetInputs(); render(); });
+$("county").addEventListener("change", e => { S.fips = +e.target.value; fillCrop(); fillPrac(); resetInputs(); render(); });
+$("crop").addEventListener("change", e => { S.crop = +e.target.value; fillPrac(); resetInputs(); render(); });
+$("practice").addEventListener("change", e => { S.prac = +e.target.value; resetInputs(); render(); });
+$("yield").addEventListener("input", e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v>=0){ S.y = v; render(); } });
+$("price").addEventListener("input", e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v>=0){ S.p = v; render(); } });
+$("reset").addEventListener("click", () => { resetInputs(); render(); });
+$("step").addEventListener("change", e => { S.step = +e.target.value; render(); });
+document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => {
+  S.mode = b.dataset.mode; document.querySelectorAll("#modeSeg button").forEach(x => x.setAttribute("aria-pressed", x===b)); render(); }));
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  S.tab = b.dataset.tab;
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x===b));
+  ["sens","charts","hist"].forEach(t => $("p-"+t).hidden = t!==S.tab);
+  render();
+}));
+$("copyTbl").addEventListener("click", async () => {
+  const b = $("copyTbl");
+  try { await navigator.clipboard.writeText(lastTable); b.textContent = "Copied — paste into Excel"; }
+  catch { b.textContent = "Copy blocked by the browser"; }
+  setTimeout(() => b.textContent = "Copy table", 2000);
+});
+// re-color charts when the theme changes
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+new MutationObserver(render).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+
+/* ---------- print ---------- */
+let inFrame = true; try { inFrame = window.self !== window.top; } catch(e) {}
+$("printBtn").hidden = inFrame;   // embedded viewers block the print dialog
+const stampDate = () => $("printDate").textContent = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+window.addEventListener("beforeprint", stampDate);
+$("printBtn").addEventListener("click", () => { stampDate(); window.print(); });
+
+/* ---------- boot ---------- */
+$("yr").textContent = D.year;
+document.querySelectorAll(".yrTxt").forEach(e => e.textContent = D.year);
+if (!byFips.has(S.fips)) S.fips = D.rows[0][0];
+fillState(); fillCounty(); fillCrop(); fillPrac(); resetInputs(); render();
+</script>
