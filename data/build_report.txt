@@ -1,0 +1,198 @@
+Build 2026-10-12 15:40
+FSA workbook : FSAInputData_20261012.xlsx
+Results file : Detailed_Results_2026_ncsa_09142026.csv
+Yields file  : FSA_yields_2009-2025_0807.feather
+Program year : 2026 (from the Main tab title); benchmark years 2020-2024
+
+Main tab rows read: 18850  (crops: 23, counties: 2776)
+PLC rates tab: 23 commodities (header row 7), dated 'September 11, 2026'
+
+CROSS-CHECKS (FSA file internal consistency)
+  Benchmark revenue S = Q x R                      max diff 0.0050  rows over tolerance: 0
+  Guarantee T = 90% of S                           max diff 0.0050  rows over tolerance: 0
+  Max payment U = 12% of S                         max diff 0.0048  rows over tolerance: 0
+  National price W = PLC rates projected MYA (G)   max diff 0.0000  rows over tolerance: 0
+  Rows with no benchmark price (ARC-CO shown as n/a): 16 -> ['Rice_Temperate Japonica']
+
+ESTIMATIONS MERGE (results file -> FSA Main; key = county FIPS + crop + practice)
+  FSA corn/soybean/wheat rows (no sub-county): 8890; matched: 8890; unmatched: 0
+  Sub-county rows skipped (results file has no sub-county): 11 (Chouteau A, Chouteau B, Umatilla A, Umatilla B)
+  Results rows with no FSA row (not shown in app): 149
+      01045 Corn All
+      01071 Corn All
+      01071 Soybeans All
+      01089 Wheat All
+      01105 Corn All
+      01105 Soybeans All
+      05031 Corn All
+      05035 Corn All
+      05037 Corn All
+      05047 Soybeans All
+      05071 Corn All
+      05095 Corn All
+      05111 Corn All
+      05149 Corn All
+      06029 Wheat All
+      06049 Wheat All
+      06107 Wheat All
+      08061 Corn All
+      09001 Corn All
+      09003 Corn All
+      09003 Soybeans All
+      09005 Corn All
+      09005 Wheat All
+      09007 Corn All
+      09009 Corn All
+      09009 Wheat All
+      09011 Corn All
+      09013 Corn All
+      09013 Soybeans All
+      09013 Wheat All
+      09015 Corn All
+      10003 Soybeans All
+      10003 Wheat All
+      12063 Soybeans All
+      13017 Corn All
+      13131 Soybeans All
+      13193 Corn All
+      13229 Soybeans All
+      13235 Corn All
+      13249 Corn All
+      13251 Wheat All
+      13259 Corn All
+      13269 Corn All
+      13275 Soybeans All
+      17003 Corn All
+      17027 Corn All
+      17201 Soybeans All
+      18007 Corn All
+      18021 Soybeans All
+      18033 Corn All
+      18081 Corn All
+      18121 Corn All
+      18183 Corn All
+      19027 Corn All
+      19033 Corn All
+      19067 Soybeans All
+      19111 Soybeans All
+      19131 Corn All
+      19151 Soybeans All
+      19161 Corn All
+      20005 Soybeans All
+      20023 Soybeans All
+      20025 Corn All
+      20033 Wheat All
+      20035 Wheat All
+      20043 Soybeans All
+      20051 Corn All
+      20077 Soybeans All
+      20077 Wheat All
+      20085 Soybeans All
+      20131 Soybeans All
+      20139 Soybeans All
+      20141 Wheat All
+      20163 Corn All
+      21033 Soybeans All
+      21033 Wheat All
+      21093 Corn All
+      21141 Corn All
+      22039 Soybeans All
+      22043 Soybeans All
+      22083 Wheat All
+      22097 Soybeans All
+      24047 Wheat All
+      26141 Corn All
+      26157 Wheat All
+      27025 Corn All
+      27039 Corn All
+      27117 Soybeans All
+      27125 Corn All
+      27147 Corn All
+      27157 Soybeans All
+      28137 Soybeans All
+      28143 Wheat All
+      29003 Corn All
+      29011 Wheat All
+      29031 Wheat All
+      29047 Soybeans All
+      29109 Corn All
+      29111 Soybeans All
+      29159 Soybeans All
+      29183 Corn All
+      29183 Soybeans All
+      30021 Corn All
+      30055 Corn All
+      30079 Corn All
+      30083 Soybeans All
+      30091 Soybeans All
+      31029 Soybeans All
+      31095 Wheat All
+      34015 Corn All
+      35025 Wheat All
+      37017 Corn All
+      37051 Soybeans All
+      37061 Corn All
+      37131 Corn All
+      37163 Corn All
+      38003 Corn All
+      38047 Corn All
+      38049 Soybeans All
+      38053 Soybeans All
+      38085 Soybeans All
+      39039 Soybeans All
+      39129 Soybeans All
+      39141 Soybeans All
+      40011 Wheat All
+      40047 Corn All
+      40053 Soybeans All
+      40075 Wheat All
+      40093 Soybeans All
+      40145 Corn All
+      40151 Wheat All
+      45027 Wheat All
+      45029 Corn All
+      45033 Soybeans All
+      46031 Corn All
+      46089 Corn All
+      48151 Wheat All
+      48179 Corn All
+      48223 Corn All
+      48371 Wheat All
+      48451 Corn All
+      48483 Wheat All
+      51036 Soybeans All
+      51057 Corn All
+      51175 Corn All
+      53061 Corn All
+      53073 Corn All
+      55055 Soybeans All
+      55057 Soybeans All
+  Benchmark yield differs between results file and FSA col Q (> 0.05): 17
+      04021 Pinal, Arizona | Corn All: FSA 232.15  results 226.62
+      10001 Kent, Delaware | Wheat Nonirrigated: FSA 80.16  results 78.06
+      16051 Jefferson, Idaho | Corn All: FSA 183.78  results 171.27
+      16053 Jerome, Idaho | Corn All: FSA 194.96  results 183.17
+      17035 Cumberland, Illinois | Soybeans Irrigated: FSA 62.16  results 56.4
+      17115 Macon, Illinois | Soybeans Irrigated: FSA 78.91  results 68.35
+      17147 Piatt, Illinois | Soybeans Nonirrigated: FSA 78.53  results 76.29
+      20119 Meade, Kansas | Soybeans All: FSA 78.06  results 68.89
+      27163 Washington, Minnesota | Soybeans Irrigated: FSA 70.4  results 63.66
+      27163 Washington, Minnesota | Soybeans Nonirrigated: FSA 53.54  results 50.72
+      35059 Union, New Mexico | Soybeans All: FSA 42.33  results 40.33
+      48109 Culberson, Texas | Corn All: FSA 136.67  results 126.67
+      48359 Oldham, Texas | Corn All: FSA 211.07  results 195.28
+      53001 Adams, Washington | Corn All: FSA 251.0  results 245.53
+      53037 Kittitas, Washington | Corn All: FSA 239.38  results 231.37
+      53077 Yakima, Washington | Corn All: FSA 241.77  results 232.86
+      56013 Fremont, Wyoming | Corn All: FSA 150.07  results 127.86
+
+YIELDS FILE (History chart; key = county FIPS + crop + practice + year)
+  Records: 309410; duplicated keys: 3103; with conflicting values: 1730
+  Rule: the FIRST value in file order is used. All conflicting values are listed in data/yield_conflicts.csv
+  Conflicts by year: 2014: 255, 2015: 196, 2016: 259, 2017: 518, 2018: 498, 2020: 1, 2022: 2, 2024: 1
+  Years shown in the History chart: 2009-2025
+  Main rows with yield history: 18803 of 18850; without: 47 (of which sub-county rows: 46)
+      no history: 22113 Vermilion, Louisiana | Rice_Med/Short Grain All
+
+Wrote docs/index.html (3.34 MB, 18850 rows, 2776 counties/sub-counties)
+Wrote data/app_inputs_audit.csv

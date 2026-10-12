@@ -1,84 +1,41 @@
-# ARC-CO / PLC Payment Calculator (MVP)
+# ARC-CO / PLC Payment Calculator
 
-Two versions of the same tool live here:
+University of Minnesota Extension calculator for 2026 ARC-CO and PLC payments by county, crop and practice.
+Live page: `docs/index.html`, published with GitHub Pages (**Settings → Pages → main / /docs**).
 
-- **`docs/index.html`**: static HTML/JavaScript page. No server; host it on GitHub Pages.
-- **`app.py`**: Streamlit (Python) version.
+**Auditing:** see [AUDIT.md](AUDIT.md). It lists every input with its source file, tab and column, the formulas and their exact lines, and a step-by-step check.
 
-## HTML version (GitHub Pages)
+## How it fits together
 
-`docs/index.html` is self-contained (data, Raleway font and logo embedded, ~1.5 MB). To publish:
-
-1. Push the repo to GitHub.
-2. Repo **Settings → Pages → Source: Deploy from a branch → `main` / `/docs`** → Save.
-3. The site appears at `https://<user>.github.io/<repo>/` in a minute or two.
-
-To refresh the data after rerunning your models:
-
-```bash
-python web/build.py path/to/new_results.csv   # rewrites docs/index.html
+```
+data/FSAInputData_YYYYMMDD.xlsx  ─┐
+data/Detailed_Results_*.csv      ─┼─>  python web/build.py  ─>  docs/index.html            (the page)
+web/template.html (page + JS)    ─┘                         ─>  data/app_inputs_audit.csv  (what the page uses, labeled by source)
+                                                            ─>  data/build_report.txt      (cross-checks and merge results)
 ```
 
-Edit the page itself in `web/template.html` (the formulas are near the top of its script and mirror `arcplc.py`).
-You can also just double-click `docs/index.html` to open it locally.
+- **FSA workbook (Main tab):** dropdowns, benchmark yield and price, default county yield (col V), default price (col W), PLC yield (col AA), 2020–24 yields.
+- **FSA workbook (PLC rates tab):** effective reference price and loan rate.
+- **Results CSV:** the "Our estimations" section, for corn, soybeans and wheat only.
+- **Yields feather:** FSA actual county yields for the History chart.
 
-## Streamlit version
+## Updating
 
-A small Streamlit app: pick **state → county → crop → practice**, enter a county
-yield and MYA price, and get 2026 ARC-CO and PLC payments per base acre, a
-yield × price sensitivity table, and two charts.
+1. Put the new file(s) in `data/` (FSA: `FSAInputData_YYYYMMDD.xlsx`; the newest is used).
+2. `pip install -r requirements.txt` (once), then `python web/build.py`.
+3. Read `data/build_report.txt`, then upload `docs/index.html`.
 
-## Run locally
-
-```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-## Deploy from GitHub (free)
-
-1. Push this folder to a GitHub repo.
-2. Go to <https://share.streamlit.io>, sign in with GitHub, **New app**.
-3. Pick the repo, branch `main`, main file `app.py` → Deploy.
-
-You get a public URL; every push to `main` redeploys.
+Wording, layout or the default county: edit `web/template.html` (default county is the `DEFAULT` line near the top of the script), rebuild, and upload.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `web/template.html`, `web/build.py` | HTML page source and the script that embeds the data → `docs/index.html` |
-| `app.py` | Streamlit UI: selectors, inputs, results, sensitivity table, charts, history tab |
-| `arcplc.py` | Payment formulas (pure functions — swap in your own module here) |
-| `data/Detailed_Results_2026_ncsa_09142026.csv` | County parameters and simulated expectations |
-| `data/counties.csv` | FIPS → county/state names (Census 2020) |
+| `web/template.html` | Page source: layout, styling, formulas (JavaScript) |
+| `web/build.py` | Reads and checks the data, writes the page and the audit outputs (Python) |
+| `arcplc.py` | Same formulas in Python, used for the audit table |
+| `tools/check_formulas.js` | Optional: confirms the page's JavaScript matches the Python on every row (Node.js) |
+| `web/logo*.png`, `web/fonts/` | UMN Extension logo, Raleway font (SIL OFL), embedded at build time |
+| `data/counties.csv` | State FIPS → two-letter abbreviation |
 
-## Payment rules (2026, OBBBA)
-
-- **ARC-CO** = min(max(0.90 × BY × BP − Y × max(MYA, LR), 0), 0.12 × BY × BP) × 0.85
-- **PLC** = max(ERP − max(MYA, LR), 0) × PLC yield × 0.85
-
-BY/BP = benchmark yield/price, ERP = effective reference price, LR = loan rate.
-Payments are $ per base acre, before sequestration and payment limits.
-
-## Data notes
-
-- Rows with no practice and no ARC benchmark are shown as "PLC yield only".
-- Irrigated/non-irrigated rows often carry no PLC yield; the app then uses the
-  PLC yield from another row of the same county/crop and says so.
-- FSA administrative counties with no Census FIPS match show as "FSA county #####".
-- Prices in the CSV are rounded to 2 decimals, which is coarse for $/lb crops
-  (seed cotton, peanuts, rice). Export more decimals for those.
-
-## Ideas for v2
-
-- Historical tab driven by a longer yield/price series file
-- Farm-level inputs (base acres, own PLC yield) → total $ for the farm
-- Distribution of simulated payments rather than only the mean
-
-## Branding
-
-- Colors: UMN Extension theme (maroon `#7A0019`, gold `#FFCC33`, lime `#C1D72E`, orange `#F8981D`), set as CSS tokens at the top of `web/template.html`.
-- Font: Raleway (SIL Open Font License), embedded from `web/fonts/` so printouts never fall back.
-- Logo: `web/logo.png` (light) and `web/logo-dark.png` (dark theme), embedded at build time.
+For educational purposes only. Contact: Henrique Monaco, hmonaco@umn.edu

@@ -212,7 +212,7 @@ footer code{font-family:var(--f-num)}
       <label class="f"><span>MYA price <small id="pUnit"></small></span>
         <input type="number" id="price" min="0" step="0.05" inputmode="decimal">
         <small id="pHint"></small></label>
-      <button class="reset" id="reset" type="button">Reset to model expectations</button>
+      <button class="reset" id="reset" type="button">Reset to defaults</button>
       <hr>
       <div class="contact">
         <p class="group-label">Contact</p>
@@ -245,7 +245,8 @@ footer code{font-family:var(--f-num)}
         <h3 id="estimTitle">Our estimations based on available info</h3>
         <div class="expect" id="expect"></div>
         <p class="note">We simulate many possible outcomes for the <span class="yrTxt">2026</span> county yield and the national MYA price and compute ARC-CO and PLC payments in each one. The figures above are the average payment across those outcomes and the share of outcomes in which each program pays. They do not change with your inputs, and they differ from the payment at the average yield and price because they include the uncertainty in markets and yields.</p>
-        <p class="note"><b>Sources:</b> expected MYA prices from the September 2026 USDA WASDE report; county trend yields from USDA FSA and RMA data; benchmark yields, benchmark prices, PLC yields and reference prices from USDA FSA.</p>
+        <p class="note" id="estNote" hidden></p>
+        <p class="note"><b>Sources:</b> expected MYA prices from the September 2026 USDA WASDE report; county trend yields from USDA FSA and RMA data. Shown for corn, soybeans and wheat.</p>
       </section>
 
       <div class="detail">
@@ -279,8 +280,7 @@ footer code{font-family:var(--f-num)}
 
         <section class="tabpanel" id="p-hist" role="tabpanel" hidden>
           <div class="charts">
-            <div class="card chartcard" id="hYieldCard"><h3>County yields, 2020–2024</h3><p>Benchmark is the Olympic average (after plug yields).</p><div class="chart" id="chHY"></div></div>
-            <div class="card chartcard"><h3>National MYA prices, 2020–2024</h3><p>Benchmark price and effective reference price shown as lines.</p><div class="chart" id="chHP"></div></div>
+            <div class="card chartcard" id="hYieldCard" style="grid-column:1/-1"><h3>County yields, <span id="histRange">2009–2026</span></h3><p>FSA actual county yields (line), the <span class="yrTxt">2026</span> county yield you entered (◆) and the <span class="yrTxt">2026</span> benchmark yield (dashed line). Shaded: <span class="benchYrs">2020–2024</span>, the years behind the benchmark.</p><div class="chart" id="chHY"></div></div>
           </div>
         </section>
       </div>
@@ -291,13 +291,18 @@ footer code{font-family:var(--f-num)}
   <footer>
     <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu · Printed <span id="printDate"></span></p>
     <p>Payments are $ per base acre and include the 85% payment-acre factor. ARC-CO uses a 90% revenue guarantee and a 12% maximum payment rate; actual revenue uses the higher of the MYA price and the loan rate. PLC pays the effective reference price minus the higher of the MYA price and loan rate, times the PLC yield. Figures are before sequestration and payment limits.<span class="screenonly"> For educational purposes only.</span></p>
+    <p><b>Data:</b> county yields, benchmarks, PLC yields and default prices from USDA FSA ARC/PLC program data; effective reference prices and loan rates from the FSA PLC rates table. Estimations are simulated by the authors.</p>
   </footer>
 </div>
 
 <script>
 const D = /*__DATA__*/null;
-// row layout: [fips, crop, practice, yields[5], benchYield, plcYield, plcBorrowed, expYield, expArc, expPlc, pArc, pPlc]
-const PRACT_LABEL = {"All":"All","Nonirrigated":"Non-irrigated","Irrigated":"Irrigated","PLC only":"PLC yield only"};
+// row layout (see web/build.py and AUDIT.md):
+// [placeIdx, cropIdx, practiceIdx, actualYields[histYears], benchYield(Main!Q), benchPrice(Main!R), plcYield(Main!AA),
+//  defaultYield(Main!V), defaultPrice(Main!W), est|null]   est = [expArc, expPlc, pArc, pPlc, resultsBenchYield]
+// places: [fips, subCounty, stateName, countyName, postal]   crops: {name, fsa, unit, dec, erp, loan}
+const DEFAULT = { fips:27127, crop:"Corn" };   // default county (FIPS, no leading zero) and crop (FSA Main col E name)
+const PRACT_LABEL = {"All":"All","Nonirrigated":"Non-irrigated","Irrigated":"Irrigated"};
 const PAF = 0.85, GUAR = 0.90, CAP = 0.12;
 const $ = id => document.getElementById(id);
 
@@ -306,44 +311,49 @@ function arcPay(y, p, by, bp, loan){ const br = by*bp; const s = GUAR*br - y*Mat
 function plcPay(p, erp, loan, py){ return Math.max(erp - Math.max(p, loan), 0)*py*PAF; }
 
 /* ---------- index ---------- */
-const byFips = new Map();
-for (const r of D.rows){ if(!byFips.has(r[0])) byFips.set(r[0], []); byFips.get(r[0]).push(r); }
-const stateOf = f => Math.floor(f/1000);
-const stateFips = [...new Set(D.rows.map(r => stateOf(r[0])))].filter(s => D.states[s]).sort((a,b)=>D.states[a][0].localeCompare(D.states[b][0]));
+const byPlace = new Map();
+for (const r of D.rows){ if(!byPlace.has(r[0])) byPlace.set(r[0], []); byPlace.get(r[0]).push(r); }
+const P_ = i => D.places[i];
+const placeLabel = i => P_(i)[3] + (P_(i)[1] ? ` (${P_(i)[1]})` : "");
+const states = [...new Set(D.places.map(p => p[2]))].sort();
 
-const S = { fips:27127, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
+const S = { place:null, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
+S.place = D.places.findIndex(p => p[0]===DEFAULT.fips); if (S.place < 0) S.place = 0;
+S.crop = D.crops.findIndex(c => c.fsa===DEFAULT.crop);
 const money = (x, d=2) => (x==null||isNaN(x)) ? "n/a" : (x<0?"−$":"$") + Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
 const num = (x, d=1) => (x==null||isNaN(x)) ? "—" : x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pct = x => (x==null||isNaN(x)) ? "n/a" : Math.round(x*100) + "%";
+const price = (x, d) => (x==null||isNaN(x)) ? "—" : "$" + x.toFixed(d);
 
 function opt(sel, items, val){ sel.innerHTML = items.map(([v,t]) => `<option value="${v}">${t}</option>`).join(""); if (val!=null) sel.value = val; }
 
-function fillState(){ opt($("state"), stateFips.map(s => [s, D.states[s][0]]), stateOf(S.fips)); }
+function fillState(){ opt($("state"), states.map(s => [s, s]), P_(S.place)[2]); }
 function fillCounty(){
-  const st = +$("state").value;
-  const fl = [...byFips.keys()].filter(f => stateOf(f)===st).sort((a,b)=>D.counties[a].localeCompare(D.counties[b]));
-  if (!fl.includes(S.fips)) S.fips = fl[0];
-  opt($("county"), fl.map(f => [f, D.counties[f]]), S.fips);
+  const st = $("state").value;
+  const pl = [...byPlace.keys()].filter(i => P_(i)[2]===st).sort((a,b)=>placeLabel(a).localeCompare(placeLabel(b)));
+  if (!pl.includes(S.place)) S.place = pl[0];
+  opt($("county"), pl.map(i => [i, placeLabel(i)]), S.place);
 }
 function fillCrop(){
-  const crops = [...new Set(byFips.get(S.fips).map(r => r[1]))].sort((a,b)=>D.crops[a].name.localeCompare(D.crops[b].name));
-  if (!crops.includes(S.crop)) S.crop = crops.includes(D.crops.findIndex(c=>c.name==="Corn")) ? D.crops.findIndex(c=>c.name==="Corn") : crops[0];
+  const crops = [...new Set(byPlace.get(S.place).map(r => r[1]))].sort((a,b)=>D.crops[a].name.localeCompare(D.crops[b].name));
+  if (!crops.includes(S.crop)){ const c = D.crops.findIndex(c => c.fsa===DEFAULT.crop); S.crop = crops.includes(c) ? c : crops[0]; }
   opt($("crop"), crops.map(c => [c, D.crops[c].name]), S.crop);
 }
 function fillPrac(){
-  const ps = byFips.get(S.fips).filter(r => r[1]===S.crop).map(r => r[2]).sort();
+  const ps = byPlace.get(S.place).filter(r => r[1]===S.crop).map(r => r[2]).sort();
   if (!ps.includes(S.prac)) S.prac = ps[0];
   opt($("practice"), ps.map(p => [p, PRACT_LABEL[D.practices[p]]]), S.prac);
 }
 function current(){
-  const r = byFips.get(S.fips).find(r => r[1]===S.crop && r[2]===S.prac);
+  const r = byPlace.get(S.place).find(r => r[1]===S.crop && r[2]===S.prac);
   const c = D.crops[S.crop];
-  return { r, c, by:r[4], py:r[5], borrowed:r[6], ey:r[7], hasArc:r[4]!=null, hasPlc:r[5]!=null };
+  return { r, c, by:r[4], bp:r[5], py:r[6], dy:r[7], dp:r[8], est:r[9],
+           hasArc: r[4]!=null && r[5]!=null, hasPlc: r[6]!=null };
 }
 function resetInputs(){
   const k = current();
-  S.y = k.hasArc ? (k.ey ?? k.by) : null;
-  S.p = k.c.ep;
+  S.y = k.hasArc ? k.dy : null;
+  S.p = k.dp;
   $("yield").value = S.y==null ? "" : S.y.toFixed(1);
   $("price").value = S.p.toFixed(k.c.dec);
 }
@@ -355,24 +365,25 @@ function baseLayout(xt, yt){
   const ax = t => ({ title:{text:t, font:{size:12,color:mu}}, gridcolor:ln, zerolinecolor:ln, linecolor:ln, tickfont:{color:mu, size:11}, automargin:true });
   return { paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", font:{family:"Public Sans, system-ui, sans-serif", color:fg, size:12},
     margin:{l:56,r:16,t:16,b:44}, xaxis:ax(xt), yaxis:ax(yt), showlegend:true,
-    legend:{orientation:"h", x:0, y:1.12, font:{size:12}}, hoverlabel:{font:{family:"Raleway, system-ui, sans-serif"}} };
+    legend:{orientation:"h", x:0, y:1.12, font:{size:12}}, hovermode:"x unified",
+    hoverlabel:{bgcolor:"#231A1C", bordercolor:"#5A4A4D", font:{family:"Raleway, system-ui, sans-serif", color:"#FFFFFF", size:12}} };
 }
 const CFG = { displayModeBar:false, responsive:true };
 
 /* ---------- render ---------- */
 function render(){
   const k = current(), c = k.c, d = c.dec;
-  const loan = c.loan, erp = c.erp, bp = c.bp, by = k.by, py = k.py;
+  const loan = c.loan, erp = c.erp, bp = k.bp, by = k.by, py = k.py;
   const y = S.y, p = S.p;
   const pu = `$/${c.unit}`, yu = `${c.unit}/ac`;
   $("yUnit").textContent = `(${yu})`; $("pUnit").textContent = `(${pu})`;
   $("yield").disabled = !k.hasArc;
-  $("yHint").textContent = k.hasArc ? `Model expectation ${num(k.ey)}` : "No ARC-CO benchmark for this selection";
-  $("pHint").textContent = `Model expectation $${c.ep.toFixed(d)} · loan rate $${loan.toFixed(d)}`;
-  $("price").step = d===2 ? "0.05" : "0.005";
+  $("yHint").textContent = k.hasArc ? `Default ${num(k.dy)}` : "No ARC-CO benchmark price for this crop";
+  $("pHint").textContent = `Default ${price(k.dp,d)} (FSA ${D.year} national price) · loan rate ${price(loan,d)}`;
+  $("price").step = d===2 ? "0.05" : "0.001";
 
-  const st = D.states[stateOf(S.fips)];
-  $("where").innerHTML = `${D.counties[S.fips]}, ${st[1]} <span>· ${c.name} · ${PRACT_LABEL[D.practices[S.prac]]} · FIPS ${String(S.fips).padStart(5,"0")}</span>`;
+  const pl = P_(S.place);
+  $("where").innerHTML = `${placeLabel(S.place)}, ${pl[4] || pl[2]} <span>· ${c.name} · ${PRACT_LABEL[D.practices[S.prac]]} · FIPS ${String(pl[0]).padStart(5,"0")}</span>`;
 
   const a = k.hasArc && y!=null ? arcPay(y, p, by, bp, loan) : null;
   const q = k.hasPlc ? plcPay(p, erp, loan, py) : null;
@@ -389,22 +400,28 @@ function render(){
   const rev = k.hasArc && y!=null ? y*Math.max(p,loan) : null;
   const P = [
     ["Benchmark yield", k.hasArc ? `${num(by)} ${c.unit}` : "—"],
-    ["Benchmark price", `$${bp.toFixed(d)}`],
+    ["Benchmark price", price(bp,d)],
     ["Benchmark revenue", k.hasArc ? money(by*bp,0) : "—"],
     ["ARC guarantee (90%)", k.hasArc ? money(GUAR*by*bp,0) : "—"],
     ["Your actual revenue", money(rev,0)],
-    ["Eff. reference price", `$${erp.toFixed(d)}`],
+    ["Eff. reference price", price(erp,d)],
     ["PLC yield", k.hasPlc ? `${num(py)} ${c.unit}` : "—"],
   ];
   $("params").innerHTML = P.map(([t,v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
-  $("plcNote").hidden = !(k.borrowed || !k.hasPlc);
-  $("plcNote").innerHTML = !k.hasPlc ? "<b>No PLC yield</b> is reported for this county and crop, so PLC is not calculated."
-    : "<b>PLC yield</b> is not reported for this practice; the county's PLC yield for the crop is used.";
+  $("plcNote").hidden = k.hasArc;
+  $("plcNote").innerHTML = "<b>No benchmark price</b> is listed for this crop in the FSA data, so ARC-CO is not calculated.";
 
-  $("printScenario").innerHTML = `<b>Your scenario:</b> county yield ${y==null?"n/a":num(y)+" "+yu}, MYA price $${p.toFixed(d)}/${c.unit}`;
-  const r = k.r;
-  $("expect").innerHTML = [["Expected ARC-CO", money(r[8])],["Expected PLC", money(r[9])],["Chance ARC-CO pays", pct(r[10])],["Chance PLC pays", pct(r[11])]]
-    .map(([t,v]) => `<div class="card"><div class="lab">${t}</div><div class="val">${v}</div></div>`).join("");
+  $("printScenario").innerHTML = `<b>Your scenario:</b> county yield ${y==null?"n/a":num(y)+" "+yu}, MYA price ${price(p,d)}/${c.unit}`;
+  // "Our estimations": corn, soybeans and wheat only, when the results file has this county/crop/practice
+  const e = k.est;
+  $("expectBox").hidden = !e;
+  if (e){
+    $("expect").innerHTML = [["Expected ARC-CO", e[0]==null?"not estimated":money(e[0])],["Expected PLC", e[1]==null?"not estimated":money(e[1])],["Chance ARC-CO pays", e[2]==null?"not estimated":pct(e[2])],["Chance PLC pays", e[3]==null?"not estimated":pct(e[3])]]
+      .map(([t,v]) => `<div class="card"><div class="lab">${t}</div><div class="val">${v}</div></div>`).join("");
+    const off = e[4]!=null && k.by!=null && Math.abs(e[4]-k.by) > 0.05;
+    $("estNote").hidden = !off;
+    if (off) $("estNote").innerHTML = `<b>Note:</b> these estimates used a benchmark yield of ${num(e[4])} ${c.unit}; the FSA data lists ${num(k.by)} ${c.unit}.`;
+  }
 
   renderTable(k);
   if (S.tab==="charts") renderCharts(k);
@@ -435,7 +452,7 @@ function renderTable(k){
   } else {
     const pcts = [4,3,2,1,0,-1,-2,-3,-4,-5,-6].map(i => 1 + i*step);
     const ys = pcts.map(x => k.by*x);
-    const A = ys.map(y => prices.map(p => arcPay(y, p, k.by, c.bp, c.loan)));
+    const A = ys.map(y => prices.map(p => arcPay(y, p, k.by, k.bp, c.loan)));
     const pl = prices.map(p => k.hasPlc ? plcPay(p, c.erp, c.loan, k.py) : null);
     const diff = S.mode==="diff" && k.hasPlc;
     const M = diff ? A.map(row => row.map((v,j) => v - pl[j])) : A;
@@ -463,10 +480,10 @@ function renderTable(k){
 function renderCharts(k){
   if (typeof Plotly === "undefined") return;
   const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), mu = tok("--muted"), fg = tok("--fg");
-  const lo = Math.min(c.loan, S.p)*0.95, hi = Math.max(c.erp, c.bp, S.p)*1.3, n = 160;
+  const lo = Math.min(c.loan, S.p)*0.95, hi = Math.max(c.erp, k.bp ?? 0, S.p)*1.3, n = 160;
   const px = Array.from({length:n}, (_,i) => lo + (hi-lo)*i/(n-1));
   const tr = [];
-  if (k.hasArc && S.y!=null) tr.push({x:px, y:px.map(p=>arcPay(S.y,p,k.by,c.bp,c.loan)), name:`ARC-CO (yield ${num(S.y)})`, line:{color:arcC,width:3}, hovertemplate:"$%{y:.2f}<extra>ARC-CO</extra>"});
+  if (k.hasArc && S.y!=null) tr.push({x:px, y:px.map(p=>arcPay(S.y,p,k.by,k.bp,c.loan)), name:`ARC-CO (yield ${num(S.y)})`, line:{color:arcC,width:3}, hovertemplate:"$%{y:.2f}<extra>ARC-CO</extra>"});
   if (k.hasPlc) tr.push({x:px, y:px.map(p=>plcPay(p,c.erp,c.loan,k.py)), name:"PLC", line:{color:plcC,width:3}, hovertemplate:"$%{y:.2f}<extra>PLC</extra>"});
   const L = baseLayout(`MYA price ($/${c.unit})`, "$ per base acre");
   L.hovermode = "x unified"; L.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f"; L.yaxis.tickprefix = "$"; L.yaxis.rangemode = "tozero";
@@ -486,10 +503,10 @@ function renderCharts(k){
   const m = 61, ys = Array.from({length:m}, (_,i) => k.by*(0.6 + 0.6*i/(m-1)));
   const pp = Array.from({length:m}, (_,i) => lo + (hi-lo)*i/(m-1));
   const plcv = pp.map(p => plcPay(p,c.erp,c.loan,k.py));
-  const z = ys.map(y => pp.map((p,j) => arcPay(y,p,k.by,c.bp,c.loan) - plcv[j]));
+  const z = ys.map(y => pp.map((p,j) => arcPay(y,p,k.by,k.bp,c.loan) - plcv[j]));
   const zm = Math.max(...z.flat().map(Math.abs), 0.01);
   const H = baseLayout(`MYA price ($/${c.unit})`, `County yield (${c.unit}/ac)`);
-  H.showlegend = false; H.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f";
+  H.showlegend = false; H.hovermode = "closest"; H.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f";
   Plotly.react("chHeat", [
     // two flat colors by sign; actual difference kept for the hover
     {type:"heatmap", x:pp, y:ys, z:z.map(r => r.map(v => Math.abs(v)<0.005 ? 0 : Math.sign(v))), customdata:z, zmin:-1, zmax:1,
@@ -501,29 +518,25 @@ function renderCharts(k){
 
 function renderHist(k){
   if (typeof Plotly === "undefined") return;
-  const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), mu = tok("--muted"), yrs = D.histYears.map(String);
-  $("hYieldCard").hidden = !k.hasArc;
-  if (k.hasArc){
-    const L = baseLayout("", `${c.unit}/ac`); L.showlegend = false; L.xaxis.type = "category";
-    L.shapes = [{type:"line", xref:"paper", x0:0, x1:1, y0:k.by, y1:k.by, line:{color:mu, dash:"dash", width:1.5}}];
-    L.annotations = [{xref:"paper", x:1, y:k.by, text:`benchmark ${num(k.by)}`, showarrow:false, xanchor:"right", yanchor:"bottom", font:{size:11,color:mu}}];
-    Plotly.react("chHY", [{type:"bar", x:yrs, y:k.r[3], marker:{color:arcC}, hovertemplate:"%{y:.1f}<extra></extra>"}], L, CFG);
-  }
-  const L2 = baseLayout("", `$/${c.unit}`); L2.showlegend = false; L2.xaxis.type = "category"; L2.yaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f";
-  L2.shapes = [
-    {type:"line", xref:"paper", x0:0, x1:1, y0:c.bp, y1:c.bp, line:{color:mu, dash:"dash", width:1.5}},
-    {type:"line", xref:"paper", x0:0, x1:1, y0:c.erp, y1:c.erp, line:{color:mu, dash:"dot", width:1.5}},
-  ];
-  L2.annotations = [
-    {xref:"paper", x:1, y:c.bp, text:`benchmark $${c.bp.toFixed(c.dec)}`, showarrow:false, xanchor:"right", yanchor:"bottom", font:{size:11,color:mu}},
-    {xref:"paper", x:0, y:c.erp, text:`eff. ref. $${c.erp.toFixed(c.dec)}`, showarrow:false, xanchor:"left", yanchor:"top", font:{size:11,color:mu}},
-  ];
-  Plotly.react("chHP", [{type:"bar", x:yrs, y:c.mya, marker:{color:plcC}, hovertemplate:"$%{y}<extra></extra>"}], L2, CFG);
+  const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), fg = tok("--fg"), mu = tok("--muted"), sunk = tok("--sunk");
+  const yrs = D.histYears.map(String), all = [...yrs, String(D.year)];
+  $("histRange").textContent = `${yrs[0]}–${D.year}`;
+  const tr = [{type:"scatter", mode:"lines+markers", x:yrs, y:k.r[3], name:"FSA actual yield", connectgaps:false,
+               line:{color:arcC, width:2.5}, marker:{color:arcC, size:6}, hovertemplate:"%{y:,.1f}<extra></extra>"}];
+  if (S.y!=null) tr.push({type:"scatter", mode:"markers", x:[String(D.year)], y:[S.y], name:`Your ${D.year} county yield`,
+               marker:{symbol:"diamond", size:13, color:plcC, line:{width:1, color:fg}}, hovertemplate:"%{y:,.1f}<extra></extra>"});
+  if (k.by!=null) tr.push({type:"scatter", mode:"lines", x:all, y:all.map(()=>k.by), name:`${D.year} benchmark yield`,
+               line:{color:fg, dash:"dash", width:1.5}, hovertemplate:"%{y:,.1f}<extra></extra>"});
+  const L = baseLayout("", `${c.unit}/ac`);
+  L.xaxis.type = "category"; L.xaxis.categoryorder = "array"; L.xaxis.categoryarray = all; L.xaxis.tickangle = -45;
+  const i0 = all.indexOf(String(D.benchYears[0])), i1 = all.indexOf(String(D.benchYears[1]));
+  if (i0 >= 0 && i1 >= 0) L.shapes = [{type:"rect", xref:"x", yref:"paper", x0:i0-0.5, x1:i1+0.5, y0:0, y1:1, fillcolor:sunk, line:{width:0}, layer:"below"}];
+  Plotly.react("chHY", tr, L, CFG);
 }
 
 /* ---------- events ---------- */
 $("state").addEventListener("change", () => { fillCounty(); fillCrop(); fillPrac(); resetInputs(); render(); });
-$("county").addEventListener("change", e => { S.fips = +e.target.value; fillCrop(); fillPrac(); resetInputs(); render(); });
+$("county").addEventListener("change", e => { S.place = +e.target.value; fillCrop(); fillPrac(); resetInputs(); render(); });
 $("crop").addEventListener("change", e => { S.crop = +e.target.value; fillPrac(); resetInputs(); render(); });
 $("practice").addEventListener("change", e => { S.prac = +e.target.value; resetInputs(); render(); });
 $("yield").addEventListener("input", e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v>=0){ S.y = v; render(); } });
@@ -558,6 +571,6 @@ $("printBtn").addEventListener("click", () => { stampDate(); window.print(); });
 /* ---------- boot ---------- */
 $("yr").textContent = D.year;
 document.querySelectorAll(".yrTxt").forEach(e => e.textContent = D.year);
-if (!byFips.has(S.fips)) S.fips = D.rows[0][0];
+document.querySelectorAll(".benchYrs").forEach(e => e.textContent = `${D.benchYears[0]}–${D.benchYears[1]}`);
 fillState(); fillCounty(); fillCrop(); fillPrac(); resetInputs(); render();
 </script>
