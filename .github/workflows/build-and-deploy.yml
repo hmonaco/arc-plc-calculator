@@ -1,0 +1,57 @@
+# Rebuilds the calculator whenever a data file, the page template or the build script changes, then publishes it.
+# One-time setup: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# You can also run it by hand: Actions tab -> "Build and publish calculator" -> Run workflow.
+name: Build and publish calculator
+
+on:
+  push:
+    branches: [main]
+    paths: ["data/**", "web/**", "arcplc.py", "requirements.txt", ".github/workflows/build-and-deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # save the rebuilt page and audit files back to the repo
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history, so the build can tell which data file was added most recently
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Build page
+        run: python web/build.py
+
+      - name: Show build report
+        run: cat data/build_report.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save rebuilt files to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html data/app_inputs_audit.csv data/build_report.txt data/yield_conflicts.csv
+          git diff --cached --quiet || (git commit -m "Rebuild calculator [automated]" && git push)
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4
