@@ -1,11 +1,11 @@
-Build 2026-10-12 15:40
+Build 2026-10-14 03:58
 FSA workbook : FSAInputData_20261012.xlsx
-Results file : Detailed_Results_2026_ncsa_09142026.csv
+Results file : Detailed_Results_2026_10132026.csv
 Yields file  : FSA_yields_2009-2025_0807.feather
 Program year : 2026 (from the Main tab title); benchmark years 2020-2024
 
 Main tab rows read: 18850  (crops: 23, counties: 2776)
-PLC rates tab: 23 commodities (header row 7), dated 'September 11, 2026'
+PLC rates tab: 23 commodities (header row 7), dated 'October 9, 2026'
 
 CROSS-CHECKS (FSA file internal consistency)
   Benchmark revenue S = Q x R                      max diff 0.0050  rows over tolerance: 0
@@ -194,5 +194,5 @@ YIELDS FILE (History chart; key = county FIPS + crop + practice + year)
   Main rows with yield history: 18803 of 18850; without: 47 (of which sub-county rows: 46)
       no history: 22113 Vermilion, Louisiana | Rice_Med/Short Grain All
 
-Wrote docs/index.html (3.34 MB, 18850 rows, 2776 counties/sub-counties)
+Wrote docs/index.html (3.35 MB, 18850 rows, 2776 counties/sub-counties)
 Wrote data/app_inputs_audit.csv
