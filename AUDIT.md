@@ -10,7 +10,7 @@ This guide covers every number the calculator shows: where it comes from, how it
 
 | File | Role |
 |---|---|
-| `data/FSAInputData_YYYYMMDD.xlsx` | **Main source.** FSA ARC/PLC program data. The build uses the newest file with this name pattern. |
+| `data/FSAInputData*.xlsx` | **Main source.** FSA ARC/PLC program data. If several are present, the most recently added one is used. |
 | `data/Detailed_Results_*.csv` | Your simulation results. Used **only** for the "Our estimations" section (corn, soybeans, wheat). |
 | `data/FSA_yields_*.feather` | FSA actual county yields, 2009–2025. Used **only** for the History chart. |
 | `data/counties.csv` | State FIPS → two-letter state abbreviation (display only). |
@@ -48,7 +48,7 @@ The build finds columns **by their header text** (row 4 of the Main tab), not by
 | Benchmark price | R | `2026 Bench Mark Price (2020-24 olympic avg)` |
 | **Default county yield** (input box, "Reset to defaults") | V | `2026 Actual Yield` (placeholder default for now; labeled only as "Default" in the app) |
 | **Default MYA price** (input box, "Reset to defaults") | W | `2026 National Price` |
-| PLC yield | AA | `PLC Yields` |
+| **Default PLC yield** (input box, "Reset to defaults") | AA | `PLC Yields` |
 | *Cross-check only, not displayed* | S, T, U | Benchmark revenue, guarantee, max payment rate |
 
 ### FSA workbook, tab **PLC rates** (one row per commodity)
@@ -67,7 +67,7 @@ The date printed on the page's data line (e.g. "September 11, 2026") is read fro
 
 | Shown in the app as | Field |
 |---|---|
-| History line, 2009–2025 | `ActYield`, by `Year` |
+| History line, 2009–2025 (marked "FSA actual yield*"; the footnote says it is the FSA-reported yield or calculated from FSA detrended data) | `ActYield`, by `Year` |
 
 **Match:** county FIPS (`ST_Cty`) + crop (`Crop Name`, same names as Main column E) + practice (`ARC-CO Yield Designation`).
 
@@ -120,7 +120,7 @@ function plcPay(p, erp, loan, py){ return Math.max(erp - Math.max(p, loan), 0)*p
 In words, with y = county yield, p = MYA price, BY / BP = benchmark yield / price (Q, R), LR = loan rate, ERP = effective reference price, PY = PLC yield (AA):
 
 - **ARC-CO** ($/base acre) = min( max( 0.90 × BY × BP − y × max(p, LR), 0 ), 0.12 × BY × BP ) × 0.85
-- **PLC** ($/base acre) = max( ERP − max(p, LR), 0 ) × PY × 0.85
+- **PLC** ($/base acre) = max( ERP − max(p, LR), 0 ) × PY × 0.85, where PY is the PLC yield in the input box (default: Main column AA)
 
 The same two formulas are in `arcplc.py` (`arc_co_payment`, `plc_payment`). Everything else on the page reuses these two functions:
 
@@ -135,6 +135,8 @@ The same two formulas are in `arcplc.py` (`arc_co_payment`, `plc_payment`). Ever
 | Sensitivity PLC row | `plcPay` at each column price | `function renderTable` |
 | "ARC-CO − PLC" view | ARC-CO cell minus PLC at the same price | `function renderTable` |
 | Charts | `arcPay` / `plcPay` over a grid of prices and yields | `function renderCharts` |
+
+**Input limits** (search for `input limits`): county yield, MYA price and PLC yield cannot go below 0. Both yields are capped at 3× the benchmark yield (Main column Q), rounded down to 0.1, and at 3× the PLC yield when there is no benchmark. An out-of-range entry is replaced by the limit, with a short message under the box. The multiple is set by `YIELD_CAP = 3`.
 
 The default county is set on the `const DEFAULT =` line (currently `{ fips:27127, crop:"Corn" }`).
 
@@ -153,7 +155,7 @@ The default county is set on the `const DEFAULT =` line (currently `{ fips:27127
 - the default yield and price in the input boxes;
 - the History bars.
 
-**Step 3 – Check the payment math.** With the app at its defaults ("Reset to defaults"), the ARC-CO and PLC boxes must equal the audit table columns `ARC-CO at defaults` and `PLC at defaults`. Those are computed in Python by `arcplc.py`, independently of the page.
+**Step 3 – Check the payment math.** With the app at its defaults ("Reset to defaults": county yield, MYA price and PLC yield), the ARC-CO and PLC boxes must equal the audit table columns `ARC-CO at defaults` and `PLC at defaults`. Those are computed in Python by `arcplc.py`, independently of the page.
 
 Worked example, **Redwood County, MN · Oats · All** (FSA 20261012):
 
@@ -196,13 +198,21 @@ It recomputes all rows with the page's own formula lines and compares them with 
 
 ## 6. Updating the data
 
-1. Save the new FSA workbook in `data/` as `FSAInputData_YYYYMMDD.xlsx`. The build always uses the newest name. Keep the same tab names (`Main`, `PLC rates`, `lookups`) and header texts. Column positions can change.
-2. For new simulation results, save the CSV in `data/` as `Detailed_Results_….csv`. For new actual yields, save `FSA_yields_….feather`. In both cases the name that sorts last is used.
+1. Save the new FSA workbook in `data/` (any name starting with `FSAInputData`). When several match, the build uses the one added or changed most recently, and says which in the build report. Keep the same tab names (`Main`, `PLC rates`, `lookups`) and header texts. Column positions can change.
+2. New simulation results: any CSV starting with `Detailed` (e.g. `DetailedRes_2026.csv`). New actual yields: any `FSA_yields….feather`. Again the most recently added file wins.
 3. Run `python web/build.py`. You need Python with pandas, numpy, openpyxl and pyarrow (`pip install -r requirements.txt`).
 4. Read `data/build_report.txt`, then upload `docs/index.html` (plus the data files and the two audit outputs, if you keep them in the repo).
 
 To use specific files instead of the newest:
 
 ```bash
-python web/build.py --fsa data/FSAInputData_20261012.xlsx --results data/Detailed_Results_2026_ncsa_09142026.csv --yields data/FSA_yields_2009-2025_0807.feather
+python web/build.py --fsa data/FSAInputData_20261012.xlsx --results data/Detailed_Results_2026_10132026.csv --yields data/FSA_yields_2009-2025_0807.feather
 ```
+
+---
+
+## 7. Automatic rebuild on GitHub
+
+`.github/workflows/build-and-deploy.yml` runs the build on GitHub every time something in `data/` or `web/` changes. It saves the rebuilt `docs/index.html`, audit table and build report back to the repo, then publishes the site. To read the build report for a run, open the repo's **Actions** tab and click the run. If a check fails (a missing column, for example), the run shows a red ✕ and the live site stays as it was.
+
+One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
