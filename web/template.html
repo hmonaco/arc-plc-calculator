@@ -55,6 +55,8 @@ aside.panel{background:var(--surface); border:1px solid var(--line); border-radi
 .group-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:4px 0 -4px}
 label.f{display:flex; flex-direction:column; gap:5px; font-weight:600; font-size:13px}
 label.f small{font-weight:400; color:var(--muted)}
+label.f small.warn{color:var(--brand); font-weight:600}
+.chartcard p.fnote{font-size:11px; margin:2px 6px 8px}
 select,input[type=number]{font:inherit; font-size:15px; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; width:100%}
 input[type=number]{font-family:var(--f-num); font-variant-numeric:lining-nums tabular-nums}
 select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--focus); outline-offset:1px}
@@ -208,10 +210,13 @@ footer code{font-family:var(--f-num)}
       <p class="group-label">Your scenario</p>
       <label class="f"><span>County yield <small id="yUnit"></small></span>
         <input type="number" id="yield" min="0" step="1" inputmode="decimal">
-        <small id="yHint"></small></label>
+        <small id="yHint"></small><small class="warn" id="yieldWarn" hidden></small></label>
       <label class="f"><span>MYA price <small id="pUnit"></small></span>
         <input type="number" id="price" min="0" step="0.05" inputmode="decimal">
-        <small id="pHint"></small></label>
+        <small id="pHint"></small><small class="warn" id="priceWarn" hidden></small></label>
+      <label class="f"><span>PLC yield <small id="pyUnit"></small></span>
+        <input type="number" id="plcy" min="0" step="1" inputmode="decimal">
+        <small id="pyHint"></small><small class="warn" id="plcyWarn" hidden></small></label>
       <button class="reset" id="reset" type="button">Reset to defaults</button>
       <hr>
       <div class="contact">
@@ -280,7 +285,7 @@ footer code{font-family:var(--f-num)}
 
         <section class="tabpanel" id="p-hist" role="tabpanel" hidden>
           <div class="charts">
-            <div class="card chartcard" id="hYieldCard" style="grid-column:1/-1"><h3>County yields, <span id="histRange">2009–2026</span></h3><p>FSA actual county yields (line), the <span class="yrTxt">2026</span> county yield you entered (◆) and the <span class="yrTxt">2026</span> benchmark yield (dashed line). Shaded: <span class="benchYrs">2020–2024</span>, the years behind the benchmark.</p><div class="chart" id="chHY"></div></div>
+            <div class="card chartcard" id="hYieldCard" style="grid-column:1/-1"><h3>County yields, <span id="histRange">2009–2026</span></h3><p>FSA actual county yields (line), the <span class="yrTxt">2026</span> county yield you entered (◆) and the <span class="yrTxt">2026</span> benchmark yield (dashed line). Shaded: <span class="benchYrs">2020–2024</span>, the years behind the benchmark.</p><div class="chart" id="chHY"></div><p class="fnote">* FSA-reported actual county yield or, where not reported, calculated from FSA detrended yield data.</p></div>
           </div>
         </section>
       </div>
@@ -317,7 +322,7 @@ const P_ = i => D.places[i];
 const placeLabel = i => P_(i)[3] + (P_(i)[1] ? ` (${P_(i)[1]})` : "");
 const states = [...new Set(D.places.map(p => p[2]))].sort();
 
-const S = { place:null, crop:null, prac:null, y:null, p:null, mode:"arc", step:5, tab:"sens" };
+const S = { place:null, crop:null, prac:null, y:null, p:null, py:null, mode:"arc", step:5, tab:"sens" };
 S.place = D.places.findIndex(p => p[0]===DEFAULT.fips); if (S.place < 0) S.place = 0;
 S.crop = D.crops.findIndex(c => c.fsa===DEFAULT.crop);
 const money = (x, d=2) => (x==null||isNaN(x)) ? "n/a" : (x<0?"−$":"$") + Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -352,10 +357,14 @@ function current(){
 }
 function resetInputs(){
   const k = current();
+  ["yieldWarn","priceWarn","plcyWarn"].forEach(id => $(id).hidden = true);
+  const mx = yieldMax(); ["yield","plcy"].forEach(id => $(id).max = isFinite(mx) ? (Math.floor(mx*10)/10).toFixed(1) : "");
   S.y = k.hasArc ? k.dy : null;
   S.p = k.dp;
   $("yield").value = S.y==null ? "" : S.y.toFixed(1);
   $("price").value = S.p.toFixed(k.c.dec);
+  S.py = k.hasPlc ? k.py : null;                       // default PLC yield = FSA Main col AA
+  $("plcy").value = S.py==null ? "" : S.py.toFixed(1);
 }
 
 /* ---------- theme-aware chart styling ---------- */
@@ -373,7 +382,7 @@ const CFG = { displayModeBar:false, responsive:true };
 /* ---------- render ---------- */
 function render(){
   const k = current(), c = k.c, d = c.dec;
-  const loan = c.loan, erp = c.erp, bp = k.bp, by = k.by, py = k.py;
+  const loan = c.loan, erp = c.erp, bp = k.bp, by = k.by, py = S.py;
   const y = S.y, p = S.p;
   const pu = `$/${c.unit}`, yu = `${c.unit}/ac`;
   $("yUnit").textContent = `(${yu})`; $("pUnit").textContent = `(${pu})`;
@@ -381,12 +390,15 @@ function render(){
   $("yHint").textContent = k.hasArc ? `Default ${num(k.dy)}` : "No ARC-CO benchmark price for this crop";
   $("pHint").textContent = `Default ${price(k.dp,d)} (FSA ${D.year} national price) · loan rate ${price(loan,d)}`;
   $("price").step = d===2 ? "0.05" : "0.001";
+  $("pyUnit").textContent = `(${yu})`;
+  $("plcy").disabled = !k.hasPlc;
+  $("pyHint").textContent = k.hasPlc ? `Default ${num(k.py)} (FSA county PLC yield)` : "No PLC yield for this selection";
 
   const pl = P_(S.place);
   $("where").innerHTML = `${placeLabel(S.place)}, ${pl[4] || pl[2]} <span>· ${c.name} · ${PRACT_LABEL[D.practices[S.prac]]} · FIPS ${String(pl[0]).padStart(5,"0")}</span>`;
 
   const a = k.hasArc && y!=null ? arcPay(y, p, by, bp, loan) : null;
-  const q = k.hasPlc ? plcPay(p, erp, loan, py) : null;
+  const q = k.hasPlc && py!=null ? plcPay(p, erp, loan, py) : null;
   $("arcPay").textContent = money(a); $("plcPay").textContent = money(q);
   let v = "";
   if (a!=null && q!=null){
@@ -411,7 +423,7 @@ function render(){
   $("plcNote").hidden = k.hasArc;
   $("plcNote").innerHTML = "<b>No benchmark price</b> is listed for this crop in the FSA data, so ARC-CO is not calculated.";
 
-  $("printScenario").innerHTML = `<b>Your scenario:</b> county yield ${y==null?"n/a":num(y)+" "+yu}, MYA price ${price(p,d)}/${c.unit}`;
+  $("printScenario").innerHTML = `<b>Your scenario:</b> county yield ${y==null?"n/a":num(y)+" "+yu}, MYA price ${price(p,d)}/${c.unit}, PLC yield ${py==null?"n/a":num(py)+" "+yu}`;
   // "Our estimations": corn, soybeans and wheat only, when the results file has this county/crop/practice
   const e = k.est;
   $("expectBox").hidden = !e;
@@ -444,7 +456,7 @@ function renderTable(k){
   const csv = [];
   $("modeSeg").hidden = !(k.hasArc && k.hasPlc);
   if (!k.hasArc || S.y==null){
-    const pl = prices.map(p => plcPay(p, c.erp, c.loan, k.py)); const mx = Math.max(...pl);
+    const pl = prices.map(p => plcPay(p, c.erp, c.loan, S.py)); const mx = Math.max(...pl);
     tbl.innerHTML = `<thead><tr><th class="corner">MYA price</th>${prices.map((p,j)=>`<th class="${j===4?"cur":""}">$${p.toFixed(d)}</th>`).join("")}</tr></thead>
       <tbody><tr class="cur"><th>PLC payment</th>${pl.map((v,j)=>`<td class="${j===4?"hit":""}" style="${shade(v,mx)}">${money(v)}</td>`).join("")}</tr></tbody>`;
     csv.push(["MYA price",...prices.map(p=>p.toFixed(d))].join("\t"), ["PLC",...pl.map(v=>v.toFixed(2))].join("\t"));
@@ -453,7 +465,7 @@ function renderTable(k){
     const pcts = [4,3,2,1,0,-1,-2,-3,-4,-5,-6].map(i => 1 + i*step);
     const ys = pcts.map(x => k.by*x);
     const A = ys.map(y => prices.map(p => arcPay(y, p, k.by, k.bp, c.loan)));
-    const pl = prices.map(p => k.hasPlc ? plcPay(p, c.erp, c.loan, k.py) : null);
+    const pl = prices.map(p => k.hasPlc ? plcPay(p, c.erp, c.loan, S.py) : null);
     const diff = S.mode==="diff" && k.hasPlc;
     const M = diff ? A.map(row => row.map((v,j) => v - pl[j])) : A;
     const mx = Math.max(...M.flat().map(Math.abs), ...(diff ? [] : pl.filter(v=>v!=null)), 0.01);
@@ -484,7 +496,7 @@ function renderCharts(k){
   const px = Array.from({length:n}, (_,i) => lo + (hi-lo)*i/(n-1));
   const tr = [];
   if (k.hasArc && S.y!=null) tr.push({x:px, y:px.map(p=>arcPay(S.y,p,k.by,k.bp,c.loan)), name:`ARC-CO (yield ${num(S.y)})`, line:{color:arcC,width:3}, hovertemplate:"$%{y:.2f}<extra>ARC-CO</extra>"});
-  if (k.hasPlc) tr.push({x:px, y:px.map(p=>plcPay(p,c.erp,c.loan,k.py)), name:"PLC", line:{color:plcC,width:3}, hovertemplate:"$%{y:.2f}<extra>PLC</extra>"});
+  if (k.hasPlc) tr.push({x:px, y:px.map(p=>plcPay(p,c.erp,c.loan,S.py)), name:"PLC", line:{color:plcC,width:3}, hovertemplate:"$%{y:.2f}<extra>PLC</extra>"});
   const L = baseLayout(`MYA price ($/${c.unit})`, "$ per base acre");
   L.hovermode = "x unified"; L.xaxis.tickformat = c.dec===2 ? "$.2f" : "$.3f"; L.yaxis.tickprefix = "$"; L.yaxis.rangemode = "tozero";
   L.shapes = [
@@ -502,7 +514,7 @@ function renderCharts(k){
   if (!show) return;
   const m = 61, ys = Array.from({length:m}, (_,i) => k.by*(0.6 + 0.6*i/(m-1)));
   const pp = Array.from({length:m}, (_,i) => lo + (hi-lo)*i/(m-1));
-  const plcv = pp.map(p => plcPay(p,c.erp,c.loan,k.py));
+  const plcv = pp.map(p => plcPay(p,c.erp,c.loan,S.py));
   const z = ys.map(y => pp.map((p,j) => arcPay(y,p,k.by,k.bp,c.loan) - plcv[j]));
   const zm = Math.max(...z.flat().map(Math.abs), 0.01);
   const H = baseLayout(`MYA price ($/${c.unit})`, `County yield (${c.unit}/ac)`);
@@ -521,7 +533,7 @@ function renderHist(k){
   const c = k.c, arcC = tok("--arc"), plcC = tok("--plc"), fg = tok("--fg"), mu = tok("--muted"), sunk = tok("--sunk");
   const yrs = D.histYears.map(String), all = [...yrs, String(D.year)];
   $("histRange").textContent = `${yrs[0]}–${D.year}`;
-  const tr = [{type:"scatter", mode:"lines+markers", x:yrs, y:k.r[3], name:"FSA actual yield", connectgaps:false,
+  const tr = [{type:"scatter", mode:"lines+markers", x:yrs, y:k.r[3], name:"FSA actual yield*", connectgaps:false,
                line:{color:arcC, width:2.5}, marker:{color:arcC, size:6}, hovertemplate:"%{y:,.1f}<extra></extra>"}];
   if (S.y!=null) tr.push({type:"scatter", mode:"markers", x:[String(D.year)], y:[S.y], name:`Your ${D.year} county yield`,
                marker:{symbol:"diamond", size:13, color:plcC, line:{width:1, color:fg}}, hovertemplate:"%{y:,.1f}<extra></extra>"});
@@ -539,8 +551,27 @@ $("state").addEventListener("change", () => { fillCounty(); fillCrop(); fillPrac
 $("county").addEventListener("change", e => { S.place = +e.target.value; fillCrop(); fillPrac(); resetInputs(); render(); });
 $("crop").addEventListener("change", e => { S.crop = +e.target.value; fillPrac(); resetInputs(); render(); });
 $("practice").addEventListener("change", e => { S.prac = +e.target.value; resetInputs(); render(); });
-$("yield").addEventListener("input", e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v>=0){ S.y = v; render(); } });
-$("price").addEventListener("input", e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v>=0){ S.p = v; render(); } });
+/* ---------- input limits: nothing below 0; yields at most 3x the benchmark yield ---------- */
+const YIELD_CAP = 3;   // multiple of the benchmark yield (Main col Q)
+function yieldMax(){ const k = current(); const base = k.by ?? k.py; return base!=null ? YIELD_CAP*base : Infinity; }
+function bounded(id, max, setState){
+  const el = $(id), warn = $(id+"Warn");
+  const check = commit => {
+    const v = parseFloat(el.value);
+    if (isNaN(v)) return;
+    const mx = max(), cap = isFinite(mx) ? Math.floor(mx*10)/10 : mx;   // round the cap down to 0.1 so it never exceeds 3x
+    const c = Math.min(Math.max(v, 0), cap);
+    warn.hidden = c === v;
+    if (c !== v) warn.textContent = v < 0 ? "Cannot be negative; using 0." : `Capped at ${num(c)} (3× the benchmark yield).`;
+    if (commit && c !== v) el.value = c;
+    setState(c); render();
+  };
+  el.addEventListener("input", () => check(false));
+  el.addEventListener("change", () => { check(true); });
+}
+bounded("yield", yieldMax, v => S.y = v);
+bounded("plcy",  yieldMax, v => S.py = v);
+bounded("price", () => Infinity, v => S.p = v);
 $("reset").addEventListener("click", () => { resetInputs(); render(); });
 $("step").addEventListener("change", e => { S.step = +e.target.value; render(); });
 document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => {
