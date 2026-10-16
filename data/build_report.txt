@@ -1,7 +1,7 @@
-Build 2026-10-16 18:18
+Build 2026-10-16 18:34
 FSA workbook : FSAInputData_20261012.xlsx
 Results file : Detailed_Results_2026_10132026.csv
-Yields file  : FSA_yields_2009-2025_0807.feather
+Yields file  : FSA_yields_2009-2025_20261016.feather
 Program year : 2026 (from the Main tab title); benchmark years 2020-2024
 
 Main tab rows read: 18850  (crops: 23, counties: 2776)
@@ -187,12 +187,9 @@ ESTIMATIONS MERGE (results file -> FSA Main; key = county FIPS + crop + practice
       56013 Fremont, Wyoming | Corn All: FSA 150.07  results 127.86
 
 YIELDS FILE (History chart; key = county FIPS + crop + practice + year)
-  Records: 309410; duplicated keys: 3103; with conflicting values: 1730
-  Rule: the FIRST value in file order is used. All conflicting values are listed in data/yield_conflicts.csv
-  Conflicts by year: 2014: 255, 2015: 196, 2016: 259, 2017: 518, 2018: 498, 2020: 1, 2022: 2, 2024: 1
+  Records: 344683; duplicated keys: 0; with conflicting values: 0
   Years shown in the History chart: 2009-2025
-  Main rows with yield history: 18803 of 18850; without: 47 (of which sub-county rows: 46)
-      no history: 22113 Vermilion, Louisiana | Rice_Med/Short Grain All
+  Main rows with yield history: 18804 of 18850; without: 46 (of which sub-county rows: 46)
 
 Wrote docs/index.html (3.35 MB, 18850 rows, 2776 counties/sub-counties)
 Wrote data/app_inputs_audit.csv
