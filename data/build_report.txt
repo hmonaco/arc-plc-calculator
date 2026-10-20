@@ -1,4 +1,4 @@
-Build 2026-10-20 04:58
+Build 2026-10-20 05:00
 FSA workbook : FSAInputData_20261012.xlsx
 Results file : Detailed_Results_2026_ncsa_v3.csv
 Yields file  : FSA_yields_2009-2025_20261016.feather
