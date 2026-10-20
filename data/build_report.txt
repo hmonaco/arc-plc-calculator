@@ -1,6 +1,6 @@
-Build 2026-10-16 18:34
+Build 2026-10-20 04:58
 FSA workbook : FSAInputData_20261012.xlsx
-Results file : Detailed_Results_2026_10132026.csv
+Results file : Detailed_Results_2026_ncsa_v3.csv
 Yields file  : FSA_yields_2009-2025_20261016.feather
 Program year : 2026 (from the Main tab title); benchmark years 2020-2024
 
