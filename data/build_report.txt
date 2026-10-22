@@ -1,6 +1,6 @@
-Build 2026-10-20 05:07
+Build 2026-10-22 15:13
 FSA workbook : FSAInputData_20261012.xlsx
-Results file : Detailed_Results_2026_ncsa_v3.csv
+Results file : Detailed_Results_2026_ncsa_v4.csv
 Yields file  : FSA_yields_2009-2025_20261016.feather
 Program year : 2026 (from the Main tab title); benchmark years 2020-2024
 
@@ -167,24 +167,7 @@ ESTIMATIONS MERGE (results file -> FSA Main; key = county FIPS + crop + practice
       53073 Corn All
       55055 Soybeans All
       55057 Soybeans All
-  Benchmark yield differs between results file and FSA col Q (> 0.05): 17
-      04021 Pinal, Arizona | Corn All: FSA 232.15  results 226.62
-      10001 Kent, Delaware | Wheat Nonirrigated: FSA 80.16  results 78.06
-      16051 Jefferson, Idaho | Corn All: FSA 183.78  results 171.27
-      16053 Jerome, Idaho | Corn All: FSA 194.96  results 183.17
-      17035 Cumberland, Illinois | Soybeans Irrigated: FSA 62.16  results 56.4
-      17115 Macon, Illinois | Soybeans Irrigated: FSA 78.91  results 68.35
-      17147 Piatt, Illinois | Soybeans Nonirrigated: FSA 78.53  results 76.29
-      20119 Meade, Kansas | Soybeans All: FSA 78.06  results 68.89
-      27163 Washington, Minnesota | Soybeans Irrigated: FSA 70.4  results 63.66
-      27163 Washington, Minnesota | Soybeans Nonirrigated: FSA 53.54  results 50.72
-      35059 Union, New Mexico | Soybeans All: FSA 42.33  results 40.33
-      48109 Culberson, Texas | Corn All: FSA 136.67  results 126.67
-      48359 Oldham, Texas | Corn All: FSA 211.07  results 195.28
-      53001 Adams, Washington | Corn All: FSA 251.0  results 245.53
-      53037 Kittitas, Washington | Corn All: FSA 239.38  results 231.37
-      53077 Yakima, Washington | Corn All: FSA 241.77  results 232.86
-      56013 Fremont, Wyoming | Corn All: FSA 150.07  results 127.86
+  Benchmark yield differs between results file and FSA col Q (> 0.05): 0
 
 YIELDS FILE (History chart; key = county FIPS + crop + practice + year)
   Records: 344683; duplicated keys: 0; with conflicting values: 0
