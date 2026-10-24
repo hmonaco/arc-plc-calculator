@@ -1,4 +1,4 @@
-Build 2026-10-22 15:13
+Build 2026-10-24 03:44
 FSA workbook : FSAInputData_20261012.xlsx
 Results file : Detailed_Results_2026_ncsa_v4.csv
 Yields file  : FSA_yields_2009-2025_20261016.feather
@@ -174,5 +174,5 @@ YIELDS FILE (History chart; key = county FIPS + crop + practice + year)
   Years shown in the History chart: 2009-2025
   Main rows with yield history: 18804 of 18850; without: 46 (of which sub-county rows: 46)
 
-Wrote docs/index.html (3.35 MB, 18850 rows, 2776 counties/sub-counties)
+Wrote docs/index.html (3.33 MB, 18850 rows, 2776 counties/sub-counties)
 Wrote data/app_inputs_audit.csv
