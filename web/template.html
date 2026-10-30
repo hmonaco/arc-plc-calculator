@@ -68,8 +68,6 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 .contact{display:flex; flex-direction:column; gap:10px}
 .contact p+p{margin-top:8px}
 .contact a{color:var(--brand); font-weight:600; user-select:all}
-#price{-moz-appearance:textfield; appearance:textfield}
-#price::-webkit-inner-spin-button, #price::-webkit-outer-spin-button{-webkit-appearance:none; margin:0}
 hr{border:none; border-top:1px solid var(--line); margin:2px 0}
 
 main{display:flex; flex-direction:column; gap:20px; min-width:0}
@@ -142,6 +140,7 @@ th.corner{text-align:left; font-family:var(--f-body); font-size:12px}
 .expect .val{font-size:1.25rem; font-weight:600}
 details summary{cursor:pointer; font-weight:600; font-size:14px}
 details[open] summary{margin-bottom:12px}
+footer .legal{margin-top:10px}
 footer{margin-top:28px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
 footer p{margin:0 0 6px}
 footer code{font-family:var(--f-num)}
@@ -159,7 +158,8 @@ footer code{font-family:var(--f-num)}
   #p-sens[hidden]{display:flex!important}
   .tabpanel{padding-top:0}
   .printonly{display:block}
-  main{gap:10px}
+  main{gap:7px}
+  .tabpanel{gap:6px}
   .card{padding:8px 12px; break-inside:avoid}
   .big{font-size:1.5rem}
   .pay{grid-template-columns:1fr 1fr 1.2fr!important}
@@ -174,7 +174,7 @@ footer code{font-family:var(--f-num)}
   .expect .val{font-size:1rem}
   .verdict .v{font-size:1.05rem}
   .legend{font-size:9.5px}
-  th,td{padding:2px 7px}
+  th,td{padding:1.5px 7px}
   table{font-size:10.5px}
   thead th{position:static}
   .tablewrap{overflow:visible}
@@ -183,7 +183,9 @@ footer code{font-family:var(--f-num)}
   .logo img{height:46px}
   .logo .logo-light{display:block!important}
   .logo .logo-dark{display:none!important}
-  footer{margin-top:10px; font-size:9px}
+  footer{margin-top:8px; padding-top:6px; font-size:8px; line-height:1.3}
+  footer p{margin:0 0 3px}
+  footer .legal{margin-top:4px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -300,7 +302,9 @@ footer code{font-family:var(--f-num)}
     <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu; Nathan Hulinsky, huli0013@umn.edu · Printed <span id="printDate"></span></p>
     <p>Payments are $ per base acre and include the 85% payment-acre factor. ARC-CO uses a 90% revenue guarantee and a 12% maximum payment rate; actual revenue uses the higher of the MYA price and the loan rate. PLC pays the effective reference price minus the higher of the MYA price and loan rate, times the PLC yield. Figures are before sequestration and payment limits.<span class="screenonly"> For educational purposes only.</span></p>
     <p><b>Data:</b> county yields, benchmarks, PLC yields and default prices from USDA FSA ARC/PLC program data; effective reference prices and loan rates from the FSA PLC rates table. Estimations are simulated by the authors.</p>
+    <p><b>Estimates only.</b> This is not an official USDA FSA calculation. Actual ARC-CO and PLC payments are determined by FSA using final county yields and marketing year average prices, which may differ from the values shown.</p>
     <p class="screenonly" id="countNote" hidden>This site counts visits with GoatCounter, without cookies or personal data.</p>
+    <p class="legal">© 2026 Regents of the University of Minnesota. All rights reserved. The University of Minnesota is an equal opportunity educator and employer. This work is supported by the U.S. Department of Agriculture’s National Institute of Food and Agriculture.</p>
   </footer>
 </div>
 
@@ -311,7 +315,7 @@ const D = /*__DATA__*/null;
 //  defaultYield(Main!V), defaultPrice(Main!W), est|null]   est = [expArc, expPlc, pArc, pPlc, resultsBenchYield]
 // places: [fips, subCounty, stateName, countyName, postal]   crops: {name, fsa, unit, dec, erp, loan}
 const DEFAULT = { fips:27127, crop:"Corn" };   // default county (FIPS, no leading zero) and crop (FSA Main col E name)
-const GOATCOUNTER_CODE = "arcplc-umn";   // your GoatCounter code, e.g. "umn-arcplc" (from https://umn-arcplc.goatcounter.com). Empty = no tracking.
+const GOATCOUNTER_CODE = "";   // your GoatCounter code, e.g. "umn-arcplc" (from https://umn-arcplc.goatcounter.com). Empty = no tracking.
 const PRACT_LABEL = {"All":"All","Nonirrigated":"Non-irrigated","Irrigated":"Irrigated"};
 const PAF = 0.85, GUAR = 0.90, CAP = 0.12;
 const $ = id => document.getElementById(id);
@@ -591,13 +595,34 @@ function bounded(id, max, setState){
 bounded("yield", yieldMax, v => S.y = v);
 bounded("plcy",  yieldMax, v => S.py = v);
 bounded("price", () => Infinity, v => S.p = v);
-// arrow keys move the price 5 cents ($/bu) or half a cent ($/lb)
+// price arrows (keyboard and the box's up/down buttons) move 5 cents ($/bu) or half a cent ($/lb).
+// The box accepts any decimal (no browser "valid value" warning), so its buttons would step $1; we turn
+// that $1 step into the price step instead.
+const priceStep = () => D.crops[S.crop].dec===2 ? 0.05 : 0.005;
+function nudgePrice(dir, from){
+  const d = D.crops[S.crop].dec, v = Math.max(0, from + dir*priceStep());
+  $("price").value = v.toFixed(d);
+  $("price").dispatchEvent(new Event("change"));
+}
+let priceBefore = null, pricePointer = false;
+$("price").addEventListener("pointerdown", () => { pricePointer = true; priceBefore = parseFloat($("price").value) || 0; });
+window.addEventListener("pointerup", () => { pricePointer = false; });
+$("price").addEventListener("input", e => {
+  if (!pricePointer) return;                          // typing: leave it alone
+  const v = parseFloat($("price").value);
+  if (isNaN(v) || priceBefore == null) return;
+  const jump = v - priceBefore;
+  if (Math.abs(Math.abs(jump) - 1) < 1e-9){           // a $1 step from the up/down buttons
+    e.stopImmediatePropagation();
+    const d = D.crops[S.crop].dec, nv = Math.max(0, priceBefore + Math.sign(jump)*priceStep());
+    $("price").value = nv.toFixed(d); S.p = nv; render();   // the browser's own "change" follows on release
+    priceBefore = nv;
+  }
+}, true);
 $("price").addEventListener("keydown", e => {
   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
   e.preventDefault();
-  const d = D.crops[S.crop].dec, st = d===2 ? 0.05 : 0.005, v = parseFloat($("price").value) || 0;
-  $("price").value = Math.max(0, v + (e.key==="ArrowUp" ? st : -st)).toFixed(d);
-  $("price").dispatchEvent(new Event("change"));
+  nudgePrice(e.key==="ArrowUp" ? 1 : -1, parseFloat($("price").value) || 0);
 });
 $("reset").addEventListener("click", () => { resetInputs(); render(); });
 $("step").addEventListener("change", e => { S.step = +e.target.value; render(); });
