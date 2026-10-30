@@ -311,6 +311,7 @@ footer code{font-family:var(--f-num)}
     <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu; Nathan Hulinsky, huli0013@umn.edu · Printed <span id="printDate"></span></p>
     <p>Payments are $ per base acre and include the 85% payment-acre factor. ARC-CO uses a 90% revenue guarantee and a 12% maximum payment rate; actual revenue uses the higher of the MYA price and the loan rate. PLC pays the effective reference price minus the higher of the MYA price and loan rate, times the PLC yield. Figures are before sequestration and payment limits.<span class="screenonly"> For educational purposes only.</span></p>
     <p><b>Data:</b> county yields, benchmarks, PLC yields and default prices from USDA FSA ARC/PLC program data; effective reference prices and loan rates from the FSA PLC rates table. Estimations are simulated by the authors.</p>
+    <p class="screenonly" id="countNote" hidden>This site counts visits with GoatCounter, without cookies or personal data.</p>
   </footer>
 </div>
 
@@ -321,6 +322,7 @@ const D = {"year":2026,"benchYears":[2020,2024],"histYears":[2009,2010,2011,2012
 //  defaultYield(Main!V), defaultPrice(Main!W), est|null]   est = [expArc, expPlc, pArc, pPlc, resultsBenchYield]
 // places: [fips, subCounty, stateName, countyName, postal]   crops: {name, fsa, unit, dec, erp, loan}
 const DEFAULT = { fips:27127, crop:"Corn" };   // default county (FIPS, no leading zero) and crop (FSA Main col E name)
+const GOATCOUNTER_CODE = "";   // your GoatCounter code, e.g. "umn-arcplc" (from https://umn-arcplc.goatcounter.com). Empty = no tracking.
 const PRACT_LABEL = {"All":"All","Nonirrigated":"Non-irrigated","Irrigated":"Irrigated"};
 const PAF = 0.85, GUAR = 0.90, CAP = 0.12;
 const $ = id => document.getElementById(id);
@@ -627,6 +629,36 @@ $("copyTbl").addEventListener("click", async () => {
 // re-color charts when the theme changes
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 new MutationObserver(render).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+
+/* ---------- usage counting (GoatCounter: no cookies, nothing stored on the visitor's device) ---------- */
+// Counts page visits plus a few named events. Only the labels below are sent: no names, no numbers typed in.
+function track(name, title){
+  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: title || name, event: true });
+}
+$("countNote").hidden = !GOATCOUNTER_CODE;
+if (GOATCOUNTER_CODE){
+  const gc = document.createElement("script");
+  gc.async = true; gc.src = "https://gc.zgo.at/count.js";
+  gc.dataset.goatcounter = `https://${GOATCOUNTER_CODE}.goatcounter.com/count`;
+  document.head.appendChild(gc);
+}
+// one "selection" event per settled choice (state/county/crop/practice), not one per dropdown that cascades
+let selTimer = null;
+function trackSelection(){
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    const pl = P_(S.place), c = D.crops[S.crop];
+    track(`select/${pl[4] || pl[2]}/${placeLabel(S.place)}/${c.name}/${D.practices[S.prac]}`, `${placeLabel(S.place)}, ${pl[4] || pl[2]} · ${c.name} · ${D.practices[S.prac]}`);
+    track(`crop/${c.name}`);
+  }, 1500);
+}
+["state","county","crop","practice"].forEach(id => $(id).addEventListener("change", trackSelection));
+["yield","price","plcy"].forEach(id => $(id).addEventListener("change", () => track(`input/${id === "plcy" ? "plc-yield" : id}`)));
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => track(`tab/${b.dataset.tab}`)));
+document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => track(`table-view/${b.dataset.mode}`)));
+$("reset").addEventListener("click", () => track("reset"));
+$("copyTbl").addEventListener("click", () => track("copy-table"));
+$("printBtn").addEventListener("click", () => track("print"));
 
 /* ---------- print ---------- */
 let inFrame = true; try { inFrame = window.self !== window.top; } catch(e) {}
