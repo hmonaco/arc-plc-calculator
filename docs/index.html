@@ -79,6 +79,8 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 .contact{display:flex; flex-direction:column; gap:10px}
 .contact p+p{margin-top:8px}
 .contact a{color:var(--brand); font-weight:600; user-select:all}
+#price{-moz-appearance:textfield; appearance:textfield}
+#price::-webkit-inner-spin-button, #price::-webkit-outer-spin-button{-webkit-appearance:none; margin:0}
 hr{border:none; border-top:1px solid var(--line); margin:2px 0}
 
 main{display:flex; flex-direction:column; gap:20px; min-width:0}
@@ -220,19 +222,20 @@ footer code{font-family:var(--f-num)}
       <hr>
       <p class="group-label">Your scenario</p>
       <label class="f"><span>County yield <small id="yUnit"></small></span>
-        <input type="number" id="yield" min="0" step="1" inputmode="decimal">
+        <input type="number" id="yield" min="0" step="any" inputmode="decimal">
         <small id="yHint"></small><small class="warn" id="yieldWarn" hidden></small></label>
-      <label class="f"><span>MYA price <small id="pUnit"></small></span>
-        <input type="number" id="price" min="0" step="0.05" inputmode="decimal">
+      <label class="f"><span>Marketing Year Average (MYA) price <small id="pUnit"></small></span>
+        <input type="number" id="price" min="0" step="any" inputmode="decimal">
         <small id="pHint"></small><small class="warn" id="priceWarn" hidden></small></label>
       <label class="f"><span>PLC yield <small id="pyUnit"></small></span>
-        <input type="number" id="plcy" min="0" step="1" inputmode="decimal">
+        <input type="number" id="plcy" min="0" step="any" inputmode="decimal">
         <small id="pyHint"></small><small class="warn" id="plcyWarn" hidden></small></label>
       <button class="reset" id="reset" type="button">Reset to defaults</button>
       <hr>
       <div class="contact">
         <p class="group-label">Contact</p>
         <p>Henrique Monaco<br><a href="mailto:hmonaco@umn.edu">hmonaco@umn.edu</a></p>
+        <p>Nathan Hulinsky<br><a href="mailto:huli0013@umn.edu">huli0013@umn.edu</a></p>
       </div>
     </aside>
 
@@ -305,7 +308,7 @@ footer code{font-family:var(--f-num)}
   </div>
 
   <footer>
-    <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu · Printed <span id="printDate"></span></p>
+    <p class="printonly"><b>For educational purposes only.</b> Contact: Henrique Monaco, hmonaco@umn.edu; Nathan Hulinsky, huli0013@umn.edu · Printed <span id="printDate"></span></p>
     <p>Payments are $ per base acre and include the 85% payment-acre factor. ARC-CO uses a 90% revenue guarantee and a 12% maximum payment rate; actual revenue uses the higher of the MYA price and the loan rate. PLC pays the effective reference price minus the higher of the MYA price and loan rate, times the PLC yield. Figures are before sequestration and payment limits.<span class="screenonly"> For educational purposes only.</span></p>
     <p><b>Data:</b> county yields, benchmarks, PLC yields and default prices from USDA FSA ARC/PLC program data; effective reference prices and loan rates from the FSA PLC rates table. Estimations are simulated by the authors.</p>
   </footer>
@@ -400,7 +403,7 @@ function render(){
   $("yield").disabled = !k.hasArc;
   $("yHint").textContent = k.hasArc ? `Default ${num(k.dy)}` : "No ARC-CO benchmark price for this crop";
   $("pHint").textContent = `Default ${price(k.dp,d)} (FSA ${D.year} national price) · loan rate ${price(loan,d)}`;
-  $("price").step = d===2 ? "0.05" : "0.001";
+  $("price").step = "any";
   $("pyUnit").textContent = `(${yu})`;
   $("plcy").disabled = !k.hasPlc;
   $("pyHint").textContent = k.hasPlc ? `Default ${num(k.py)} (FSA county PLC yield)` : "No PLC yield for this selection";
@@ -597,6 +600,14 @@ function bounded(id, max, setState){
 bounded("yield", yieldMax, v => S.y = v);
 bounded("plcy",  yieldMax, v => S.py = v);
 bounded("price", () => Infinity, v => S.p = v);
+// arrow keys move the price 5 cents ($/bu) or half a cent ($/lb)
+$("price").addEventListener("keydown", e => {
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  e.preventDefault();
+  const d = D.crops[S.crop].dec, st = d===2 ? 0.05 : 0.005, v = parseFloat($("price").value) || 0;
+  $("price").value = Math.max(0, v + (e.key==="ArrowUp" ? st : -st)).toFixed(d);
+  $("price").dispatchEvent(new Event("change"));
+});
 $("reset").addEventListener("click", () => { resetInputs(); render(); });
 $("step").addEventListener("change", e => { S.step = +e.target.value; render(); });
 document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => {
