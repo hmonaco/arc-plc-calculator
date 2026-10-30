@@ -216,21 +216,3 @@ python web/build.py --fsa data/FSAInputData_20261012.xlsx --results data/Detaile
 `.github/workflows/build-and-deploy.yml` runs the build on GitHub every time something in `data/` or `web/` changes. It saves the rebuilt `docs/index.html`, audit table and build report back to the repo, then publishes the site. To read the build report for a run, open the repo's **Actions** tab and click the run. If a check fails (a missing column, for example), the run shows a red ✕ and the live site stays as it was.
 
 One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-
----
-
-## 8. Usage counting (GoatCounter)
-
-The page can count visits with GoatCounter, which uses no cookies and stores nothing on the visitor's device. It is off until a code is set in `web/template.html`, on the line `const GOATCOUNTER_CODE = "";`. When a code is set, the footer says the site counts visits.
-
-What is sent (search for `usage counting`): a page view, plus these named events. Only the labels are sent, never the numbers someone types in.
-
-| Event | When |
-|---|---|
-| `select/<state>/<county>/<crop>/<practice>` and `crop/<crop>` | Someone settles on a county / crop / practice (one event per choice, not one per dropdown) |
-| `input/yield`, `input/price`, `input/plc-yield` | Someone changes one of the three inputs |
-| `tab/sens`, `tab/charts`, `tab/hist` | Someone opens a tab |
-| `table-view/arc`, `table-view/diff` | Someone switches the sensitivity table view |
-| `reset`, `copy-table`, `print` | Someone clicks those buttons |
-
-GoatCounter does not count visits from the page when it is opened inside another site's frame or from your own computer (localhost), so previews don't inflate the numbers.
